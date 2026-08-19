@@ -1,1481 +1,970 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fermette — simulation du comportement mécanique</title>
-<style>
-:root{
-  --bg:#f4f6f8; --panel:#ffffff; --panel-2:#f7f9fb; --ink:#1b2733; --ink-2:#5b6b7c;
-  --line:#dde3ea; --accent:#0f6ab4; --accent-soft:#e6f0f9;
-  --trac:#d64545; --comp:#2f6fd0; --zero:#9aa7b4; --def:#7a4fd0;
-  --ok:#1c7c4a; --ok-soft:#e4f4ea; --ko:#c0392b; --ko-soft:#fbe9e7;
-  --warn:#b06a00; --warn-soft:#fdf3e0;
-  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-}
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#0f151b; --panel:#161e26; --panel-2:#1b242e; --ink:#e6edf3; --ink-2:#93a2b1;
-    --line:#2a3742; --accent:#4d9fe0; --accent-soft:#16293a;
-    --trac:#ef6b6b; --comp:#5c9bef; --zero:#6b7885; --def:#a583ee;
-    --ok:#4bbd80; --ok-soft:#132a1f; --ko:#ef6b6b; --ko-soft:#2c1a18;
-    --warn:#d9a441; --warn-soft:#2a2113;
-  }
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{display:flex;align-items:center;gap:14px;padding:9px 16px;background:var(--panel);
-  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;flex-wrap:wrap}
-header h1{font-size:15px;margin:0;font-weight:650}
-header .spacer{flex:1}
-.levels{display:flex;gap:3px;background:var(--panel-2);border:1px solid var(--line);
-  border-radius:8px;padding:3px}
-.lvl{padding:5px 13px;border-radius:6px;font-size:12.5px;cursor:pointer;color:var(--ink-2);
-  border:none;background:none;font-weight:600}
-.lvl.on{background:var(--accent);color:#fff}
-.lvl:hover:not(.on){background:var(--accent-soft);color:var(--accent)}
-.layout{display:grid;grid-template-columns:338px 1fr;height:calc(100vh - 44px)}
-@media(max-width:900px){.layout{grid-template-columns:1fr;height:auto}}
-
-aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding-bottom:40px}
-details.grp{border-bottom:1px solid var(--line)}
-details.grp>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:12.5px;
-  text-transform:uppercase;letter-spacing:.6px;color:var(--ink-2);list-style:none;
-  display:flex;align-items:center;gap:8px;user-select:none}
-details.grp>summary::-webkit-details-marker{display:none}
-details.grp>summary::before{content:"▸";font-size:10px;transition:transform .15s;color:var(--accent)}
-details.grp[open]>summary::before{transform:rotate(90deg)}
-details.grp>summary:hover{background:var(--panel-2)}
-.grp-body{padding:4px 14px 14px}
-.row{display:flex;align-items:center;gap:8px;margin:7px 0}
-.row label{flex:1;font-size:12.5px;color:var(--ink-2)}
-.row .u{font-size:11px;color:var(--ink-2);width:52px}
-input[type=number],input[type=text],select{
-  width:88px;padding:5px 7px;border:1px solid var(--line);border-radius:5px;
-  background:var(--panel-2);color:var(--ink);font:13px var(--mono);text-align:right}
-select{font-family:inherit;text-align:left;width:150px}
-input:disabled,select:disabled{opacity:.55;cursor:not-allowed}
-input:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
-input[type=range]{width:104px;accent-color:var(--accent)}
-input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
-.hint{font-size:11.5px;color:var(--ink-2);margin:6px 0 2px;line-height:1.45}
-.calcout{font:12px var(--mono);background:var(--accent-soft);border-radius:5px;padding:7px 9px;
-  margin-top:8px;border:1px solid var(--line)}
-.calcout b{color:var(--accent)}
-.locked{background:var(--warn-soft);border:1px solid var(--line);border-radius:5px;
-  padding:6px 9px;font-size:11.5px;color:var(--ink);margin-bottom:8px}
-.btn{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:6px;
-  padding:6px 11px;font-size:12.5px;cursor:pointer}
-.btn:hover{border-color:var(--accent);color:var(--accent)}
-
-main{display:flex;flex-direction:column;overflow:hidden}
-.toolbar{display:flex;align-items:center;gap:10px;padding:7px 14px;background:var(--panel);
-  border-bottom:1px solid var(--line);flex-wrap:wrap}
-.toolbar .sep{width:1px;height:20px;background:var(--line)}
-.toolbar label{font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:5px}
-#viewwrap{flex:1;min-height:340px;position:relative;background:var(--bg);overflow:hidden}
-#view{width:100%;height:100%;display:block}
-#tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);
-  border-radius:6px;padding:7px 9px;font:12px var(--mono);box-shadow:0 4px 14px rgba(0,0,0,.2);
-  display:none;z-index:5;white-space:pre}
-.legend{position:absolute;right:12px;top:10px;background:var(--panel);border:1px solid var(--line);
-  border-radius:6px;padding:8px 10px;font-size:11.5px;color:var(--ink-2);line-height:1.75}
-.legend i{display:inline-block;width:16px;height:3px;vertical-align:middle;margin-right:6px;border-radius:2px}
-.verdictbar{position:absolute;left:12px;top:10px;display:flex;gap:8px;flex-wrap:wrap;max-width:60%}
-.vcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 11px;min-width:112px}
-.vcard .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2)}
-.vcard .v{font:16px/1.3 var(--mono);font-weight:650;margin-top:1px}
-.vcard.ok{background:var(--ok-soft);border-color:var(--ok)}
-.vcard.ko{background:var(--ko-soft);border-color:var(--ko)}
-.vcard.ok .v{color:var(--ok)} .vcard.ko .v{color:var(--ko)}
-.vcard.alert{background:var(--ko-soft);border-color:var(--ko);border-width:2px}
-.vcard.alert .v{color:var(--ko);font-size:14px}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
-.vcard.alert .k:first-child{animation:pulse 1.4s ease-in-out infinite;color:var(--ko);font-weight:700}
-
-.tabs{display:flex;gap:2px;padding:0 12px;background:var(--panel);border-top:1px solid var(--line);
-  overflow-x:auto}
-.tab{padding:8px 13px;font-size:12.5px;cursor:pointer;color:var(--ink-2);
-  border-bottom:2px solid transparent;white-space:nowrap}
-.tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
-.panelbox{height:264px;overflow:auto;background:var(--panel);border-top:1px solid var(--line)}
-.panelbox.hide{display:none}
-table{border-collapse:collapse;width:100%;font-size:12.5px}
-th,td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
-th{position:sticky;top:0;background:var(--panel);z-index:2;font-weight:600;color:var(--ink-2);
-  font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
-th:first-child,td:first-child{text-align:left}
-td.num{font-family:var(--mono)}
-tr.hi{background:var(--accent-soft)}
-tbody tr:hover{background:var(--panel-2)}
-.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600}
-.tag.t{background:rgba(214,69,69,.15);color:var(--trac)}
-.tag.c{background:rgba(47,111,208,.15);color:var(--comp)}
-.tag.z{background:rgba(154,167,180,.18);color:var(--zero)}
-.tag.ok{background:var(--ok-soft);color:var(--ok)}
-.tag.ko{background:var(--ko-soft);color:var(--ko)}
-.bar{display:inline-block;height:7px;border-radius:4px;background:var(--accent);vertical-align:middle}
-.barwrap{display:inline-block;width:82px;height:7px;background:var(--line);border-radius:4px;
-  overflow:hidden;vertical-align:middle;margin-right:7px}
-.pad{padding:14px 18px;font-size:13px;line-height:1.6;max-width:960px}
-.pad h3{font-size:12.5px;margin:16px 0 6px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
-.pad h3:first-child{margin-top:0}
-.pad code{font:12px var(--mono);background:var(--panel-2);padding:1px 5px;border-radius:4px}
-.pad ul{margin:6px 0;padding-left:20px}
-.infobox{margin:10px 14px;padding:9px 12px;border-left:3px solid var(--accent);
-  background:var(--panel-2);font-size:12.5px;border-radius:0 5px 5px 0}
-.infobox.good{border-left-color:var(--ok);background:var(--ok-soft)}
-.infobox.bad{border-left-color:var(--ko);background:var(--ko-soft)}
-.solgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:11px;padding:14px}
-.solcard{border:1px solid var(--line);border-radius:9px;padding:11px 13px;background:var(--panel-2)}
-.solcard.active{border-color:var(--accent);background:var(--accent-soft)}
-.solcard h4{margin:0 0 3px;font-size:13.5px}
-.solcard p{margin:3px 0 0;font-size:12px;color:var(--ink-2);line-height:1.45}
-.solcard .st{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
-.solcard.active .st{color:var(--accent)}
-.solcard:not(.active) .st{color:var(--ink-2)}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulateur d'efforts dynamique - Fermette (Cycle 4)</title>
+    <style>
+        :root {
+            --primary: #1e272e;
+            --secondary: #485460;
+            --accent: #0fb9b1;
+            --bg: #d2dae2;
+            --text: #1e272e;
+            --panel-bg: #ffffff;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 { color: var(--primary); }
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1300px;
+            width: 100%;
+        }
+        .panel {
+            background: var(--panel-bg);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        .controls {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .visualization {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            background: #fdfdfd;
+            border: 2px solid #d1d8e0;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 800px;
+        }
+        .level-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        .level-btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 20px;
+            background: #a4b0be;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            transition: 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .level-btn.active {
+            background: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(15, 185, 177, 0.3);
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .control-group label {
+            font-weight: 600;
+            font-size: 0.95em;
+            color: var(--secondary);
+        }
+        select, input[type="number"], input[type="range"] {
+            padding: 8px;
+            border: 1px solid #ced6e0;
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            background-color: #f1f2f6;
+            font-family: inherit;
+        }
+        .checkbox-group {
+            background: #f1f2f6;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #ced6e0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .checkbox-group > label {
+            font-weight: normal;
+            font-size: 0.9em;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin-top: 2px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+            cursor: pointer;
+            transform: scale(1.2);
+        }
+        .force-slider {
+            padding-left: 28px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85em;
+            color: var(--accent);
+            font-weight: bold;
+        }
+        .force-slider input[type="range"] {
+            flex: 1;
+            padding: 0;
+            height: 6px;
+            cursor: pointer;
+        }
+        .force-val-text {
+            width: 55px;
+            text-align: right;
+            display: inline-block;
+        }
+        .results {
+            background: #f8f9fa;
+            padding: 20px;
+            border-left: 5px solid var(--accent);
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .hidden { display: none !important; }
+        .material-info {
+            font-size: 0.85em;
+            background: #e8f4f8;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 5px;
+            border: 1px solid #d1d8e0;
+            line-height: 1.5;
+        }
+        .alert {
+            color: #eb3b5a;
+            font-weight: bold;
+            background: #fc5c6522;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #fc5c65;
+            animation: pulse 1.5s infinite;
+        }
+        .geo-box {
+            background: #fff3e0; 
+            padding: 12px; 
+            border-radius: 6px; 
+            border: 1px dashed #e67e22;
+        }
+        .profile-box {
+            background: #eaf2f8; 
+            padding: 12px; 
+            border-radius: 6px; 
+            border: 1px dashed #3498db;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
 </head>
 <body>
-<header>
-  <h1>Fermette — comportement mécanique</h1>
-  <div class="levels" id="levels">
-    <button class="lvl on" data-r="0">5ᵉ</button>
-    <button class="lvl" data-r="1">4ᵉ</button>
-    <button class="lvl" data-r="2">3ᵉ</button>
-    <button class="lvl" data-r="3">Expert</button>
-  </div>
-  <span class="spacer"></span>
-  <button class="btn" id="btnCsv">Export CSV</button>
-  <button class="btn" id="btnReset">Réinitialiser</button>
-</header>
 
-<div class="layout">
-<aside id="side">
+    <header>
+        <h1>Modélisation Structurelle - Fermette</h1>
+        <div class="level-selector">
+            <button class="level-btn" onclick="setLevel(5)">Niveau 5ème</button>
+            <button class="level-btn" onclick="setLevel(4)">Niveau 4ème</button>
+            <button class="level-btn" onclick="setLevel(3)">Niveau 3ème</button>
+        </div>
+    </header>
 
-  <details class="grp" open><summary>Situation étudiée</summary><div class="grp-body">
-    <div class="row"><label>Ouvrage</label><select id="situ">
-      <option value="reel">Charpente réelle (toiture)</option>
-      <option value="maq">Maquette d'essai (charge ponctuelle)</option>
-    </select></div>
-    <div class="hint" id="situHint"></div>
-    <div class="locked" id="lockNote" style="display:none"></div>
-  </div></details>
+    <div class="container">
+        <div class="panel controls">
+            <h3 style="margin-top: 0; margin-bottom: 10px;">Paramètres de l'étude</h3>
+            
+            <div class="control-group geo-box">
+                <label style="color: #d35400;">Dimensions géométriques (Maquette)</label>
+                <div style="display: flex; gap: 10px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Entrait (mm)</label>
+                        <input type="number" id="dim-entrait" value="300" step="10" min="10" oninput="updateSimulation()">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Arbalétriers (mm)</label>
+                        <input type="number" id="dim-arba" value="200" step="10" min="10" oninput="updateSimulation()">
+                    </div>
+                </div>
+                <div style="font-size: 0.85em; color: #d35400; margin-top: 10px;">
+                    <strong>Déductions automatiques :</strong><br>
+                    Poinçon : <span id="val-poincon">132.3</span> mm<br>
+                    Contrefiches : <span id="val-contrefiche">100.0</span> mm
+                </div>
+                <div id="dim-error" class="alert hidden" style="font-size: 0.85em; padding: 5px; margin-top: 8px;">
+                    ⚠️ Géométrie impossible : Les arbalétriers sont trop courts pour se rejoindre !
+                </div>
+            </div>
 
-  <details class="grp" open><summary>Géométrie de la fermette</summary><div class="grp-body">
-    <div class="row"><label>Portée entre appuis</label><input type="number" id="L" value="8" step="0.1" min="0.2" max="20" data-en="2"><span class="u">m</span></div>
-    <div class="row"><label>Pente du versant</label><input type="number" id="alpha" value="30" step="0.5" min="5" max="60" data-en="2"><span class="u">°</span></div>
-    <div class="row"><label>Panneaux par demi-ferme</label><input type="number" id="k" value="2" step="1" min="1" max="5" data-en="2"><span class="u">—</span></div>
-    <div class="row" data-vis="1"><label>Entraxe des fermettes</label><input type="number" id="entraxe" value="0.60" step="0.05" min="0.05" max="1.5" data-en="2"><span class="u">m</span></div>
-    <div class="row" data-vis="3"><label>Débord de toiture</label><input type="number" id="debord" value="0.40" step="0.05" min="0" max="1.5" data-en="2"><span class="u">m</span></div>
-    <div class="calcout" id="geoOut"></div>
-  </div></details>
+            <div class="control-group">
+                <label>Architecture de la structure</label>
+                <div class="checkbox-group" style="background: #e8f4f8; border-color: #bde0f0;">
+                    <label><input type="checkbox" id="struct-poincon" checked onchange="updateSimulation()"> Poinçon (Pièce centrale verticale)</label>
+                    <label><input type="checkbox" id="struct-contrefiche-g" checked onchange="updateSimulation()"> Contrefiche Gauche</label>
+                    <label><input type="checkbox" id="struct-contrefiche-d" checked onchange="updateSimulation()"> Contrefiche Droite</label>
+                </div>
+            </div>
 
-  <details class="grp" open><summary>Matériau</summary><div class="grp-body">
-    <div class="row"><label>Nature du matériau</label><select id="mat" data-en="1"></select></div>
-    <div class="calcout" id="matOut"></div>
-    <div class="hint">Valeurs indicatives à usage pédagogique. E = module d'élasticité (rigidité),
-      σ<sub>adm</sub> = contrainte admissible (résistance).</div>
-  </div></details>
+            <div class="control-group lvl-3 hidden">
+                <label style="color: var(--accent);">Valeur maximale des curseurs de force (N)</label>
+                <input type="number" id="force-max" value="10000" min="10" step="50" oninput="updateForceMax()">
+            </div>
 
-  <details class="grp" open><summary>Dimensions des barres</summary><div class="grp-body">
-    <div class="row"><label>Arbalétrier b×h</label><input type="text" id="secAr" value="36x122" data-en="1"><span class="u">mm</span></div>
-    <div class="row"><label>Entrait b×h</label><input type="text" id="secEn" value="36x122" data-en="1"><span class="u">mm</span></div>
-    <div class="row"><label>Montants / diagonales</label><input type="text" id="secDi" value="36x97" data-en="1"><span class="u">mm</span></div>
-    <div class="row"><label>Poids propre pris en compte</label><input type="checkbox" id="pp" checked data-en="2"><span class="u"></span></div>
-    <div class="calcout" id="secOut"></div>
-  </div></details>
+            <div class="control-group">
+                <label>Points d'application des forces</label>
+                <div class="checkbox-group">
+                    
+                    <label><input type="checkbox" id="force-C" checked onchange="updateSimulation()"> Nœud C (Faitage) - Charge verticale</label>
+                    <div id="slider-C" class="force-slider hidden">
+                        <input type="range" id="val-force-C" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-C" class="force-val-text">150</span> N
+                    </div>
 
-  <details class="grp" open><summary>Charges appliquées</summary><div class="grp-body">
-    <div id="chReel">
-      <div class="row"><label>Couverture (tuiles, liteaux)</label><select id="presetCouv" data-en="2">
-        <option value="15">Bac acier — 15</option>
-        <option value="30">Ardoise — 30</option>
-        <option value="45" selected>Tuile terre cuite — 45</option>
-        <option value="55">Tuile béton — 55</option>
-        <option value="75">Tuile canal scellée — 75</option>
-      </select></div>
-      <div class="row"><label>Couverture</label><input type="number" id="gCouv" value="45" step="1" min="0" data-en="2"><span class="u">daN/m²</span></div>
-      <div class="row"><label>Plafond + isolant</label><input type="number" id="gPlaf" value="25" step="1" min="0" data-en="2"><span class="u">daN/m²</span></div>
-      <div class="row"><label>Neige</label><input type="number" id="sMan" value="44" step="1" min="0" data-en="2"><span class="u">daN/m²</span></div>
-      <div class="row" data-vis="3"><label>Calcul neige EN 1991-1-3</label><input type="checkbox" id="snowAuto" data-en="3"><span class="u"></span></div>
-      <div class="row" data-vis="3"><label>Région de neige</label><select id="snowZone" data-en="3">
-        <option value="0.45|A1">A1</option><option value="0.45|A2">A2</option>
-        <option value="0.55|B1" selected>B1</option><option value="0.55|B2">B2</option>
-        <option value="0.65|C1">C1</option><option value="0.65|C2">C2</option>
-        <option value="0.90|D">D</option><option value="1.40|E">E</option>
-      </select></div>
-      <div class="row" data-vis="3"><label>Altitude</label><input type="number" id="alt" value="150" step="10" min="0" max="2000" data-en="3"><span class="u">m</span></div>
+                    <label><input type="checkbox" id="force-E" onchange="updateSimulation()"> Nœud E (Arbalétrier Gauche) - Charge verticale</label>
+                    <div id="slider-E" class="force-slider hidden">
+                        <input type="range" id="val-force-E" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-E" class="force-val-text">150</span> N
+                    </div>
+
+                    <label><input type="checkbox" id="force-F" onchange="updateSimulation()"> Nœud F (Arbalétrier Droit) - Charge verticale</label>
+                    <div id="slider-F" class="force-slider hidden">
+                        <input type="range" id="val-force-F" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-F" class="force-val-text">150</span> N
+                    </div>
+
+                    <label><input type="checkbox" id="force-D" onchange="updateSimulation()"> Nœud D (Entrait) - Charge suspendue</label>
+                    <div id="slider-D" class="force-slider hidden">
+                        <input type="range" id="val-force-D" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-D" class="force-val-text">150</span> N
+                    </div>
+
+                    <label><input type="checkbox" id="force-AB" onchange="updateSimulation()"> Nœuds A & B (Appuis) - Traction écartement</label>
+                    <div id="slider-AB" class="force-slider hidden">
+                        <input type="range" id="val-force-AB" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-AB" class="force-val-text">150</span> N
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Matériau de la structure</label>
+                <select id="materiau" onchange="updateSimulation()">
+                    <option value="bois">Bois de charpente (Épicéa)</option>
+                    <option value="balsa" selected>Bois de maquette (Balsa)</option>
+                    <option value="acier">Acier S235 (Construction)</option>
+                    <option value="aluminium">Aluminium 6060</option>
+                    <option value="abs">Plastique rigide (ABS)</option>
+                    <option value="pvc_rigide">Plastique (PVC Rigide)</option>
+                    <option value="pvc_expanse">Plastique souple (PVC Expansé / Forex)</option>
+                </select>
+                <div id="material-info" class="material-info"></div>
+            </div>
+
+            <div class="control-group lvl-4 hidden profile-box">
+                <label style="color: #2980b9;">Profilé de la poutre</label>
+                <select id="section-forme" onchange="updateSimulation()">
+                    <option value="carree">Carrée</option>
+                    <option value="rectangulaire">Rectangulaire</option>
+                </select>
+                
+                <div id="inputs-carree" style="display: flex; gap: 10px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Côté (mm)</label>
+                        <input type="number" id="dim-a" value="10" min="0" step="1" oninput="updateSimulation()">
+                    </div>
+                </div>
+
+                <div id="inputs-rect" style="display: none; gap: 10px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Largeur (mm)</label>
+                        <input type="number" id="dim-b" value="10" min="0" step="1" oninput="updateSimulation()">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Hauteur (mm)</label>
+                        <input type="number" id="dim-h" value="20" min="0" step="1" oninput="updateSimulation()">
+                    </div>
+                </div>
+
+                <div style="font-size: 0.85em; color: #2980b9; margin-top: 10px;">
+                    <strong>Section calculée : <span id="section-val">100.0</span> mm²</strong>
+                </div>
+            </div>
+
+            <div class="control-group lvl-3 hidden">
+                <label>Saisie : Mesure expérimentale (mm)</label>
+                <input type="number" id="mesure-exp" placeholder="Exemple : 4.5" step="0.1" oninput="updateSimulation()">
+            </div>
+        </div>
+
+        <div class="panel visualization">
+            <h3 style="margin-top: 0;">Rendu Cinématique & Contraintes</h3>
+            <canvas id="fermetteCanvas" width="800" height="400"></canvas>
+            
+            <div class="results" id="result-panel">
+                <h4 style="margin-top: 0; color: var(--secondary);">Analyse des résultats</h4>
+                <p><strong>Déplacement nodal max (théorique) :</strong> <span id="res-deformation" style="font-size: 1.2em; color: var(--accent);">0.00</span> mm</p>
+                <div id="res-lvl3" class="hidden">
+                    <p><strong>Taux de travail global (pire cas) :</strong> <span id="res-taux">0.0</span> %</p>
+                    <p><strong>Écart modèle/réel :</strong> <span id="res-ecart" style="font-style: italic;">En attente de saisie...</span></p>
+                    <p id="alerte-rupture" class="alert hidden">⚠️ RUPTURE : Limite d'élasticité dépassée ou structure trop faible !</p>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="row"><label>Charge d'essai ponctuelle</label><input type="number" id="ptF" value="0" step="10" min="0" data-en="2"><span class="u" id="ptU">N</span></div>
-    <div class="row"><label>Unité de la charge d'essai</label><select id="ptUnit" data-en="2">
-      <option value="N">newtons (N)</option><option value="kg">masse (kg)</option>
-    </select></div>
-    <div class="row"><label>Appliquée au nœud</label><select id="ptNode" data-en="2"></select></div>
-    <div class="calcout" id="chOut"></div>
-  </div></details>
-
-  <details class="grp" data-vis="3"><summary>Vent (mode expert)</summary><div class="grp-body">
-    <div class="row"><label>Région de vent</label><select id="windReg">
-      <option value="22" selected>1 — 22 m/s</option><option value="24">2 — 24 m/s</option>
-      <option value="26">3 — 26 m/s</option><option value="28">4 — 28 m/s</option>
-    </select></div>
-    <div class="row"><label>Catégorie terrain</label><select id="windTer">
-      <option value="0.005|1|0">0 — mer</option>
-      <option value="0.05|2|II">II — rase campagne</option>
-      <option value="0.20|5|IIIa" selected>IIIa — campagne bocagère</option>
-      <option value="0.50|9|IIIb">IIIb — zone urbanisée</option>
-      <option value="1.00|15|IV">IV — ville dense</option>
-    </select></div>
-    <div class="row"><label>Hauteur de référence z</label><input type="number" id="windZ" value="8" step="0.5" min="2"><span class="u">m</span></div>
-    <div class="row"><label>Pression · au vent</label><input type="number" id="cp1p" value="0.5" step="0.05"><span class="u">c net</span></div>
-    <div class="row"><label>Pression · sous le vent</label><input type="number" id="cp2p" value="-0.5" step="0.05"><span class="u">c net</span></div>
-    <div class="row"><label>Soulèv. · au vent</label><input type="number" id="cp1s" value="-0.9" step="0.05"><span class="u">c net</span></div>
-    <div class="row"><label>Soulèv. · sous le vent</label><input type="number" id="cp2s" value="-0.7" step="0.05"><span class="u">c net</span></div>
-    <div class="calcout" id="wOut"></div>
-  </div></details>
-
-  <details class="grp" open><summary>Critère de déformation</summary><div class="grp-body">
-    <div class="row"><label>Déformation maximale autorisée</label><select id="critType" data-en="1">
-      <option value="200">portée / 200</option>
-      <option value="300" selected>portée / 300</option>
-      <option value="400">portée / 400</option>
-      <option value="lib">valeur libre</option>
-    </select></div>
-    <div class="row"><label>Valeur libre</label><input type="number" id="critVal" value="10" step="1" min="0.1" disabled><span class="u">mm</span></div>
-    <div class="calcout" id="critOut"></div>
-  </div></details>
-
-  <details class="grp" open><summary>Mesure expérimentale</summary><div class="grp-body">
-    <div class="hint">Protocole : charger la maquette ou l'ouvrage, mesurer la flèche au point le plus
-      bas avec un comparateur ou un réglet, puis comparer au résultat simulé.</div>
-    <div class="row"><label>Déformation mesurée</label><input type="number" id="mes" value="0" step="0.1" min="0"><span class="u">mm</span></div>
-    <div class="calcout" id="mesOut"></div>
-  </div></details>
-
-</aside>
-
-<main>
-  <div class="toolbar">
-    <label>Cas de charge <select id="combo" style="width:250px"></select></label>
-    <div class="sep"></div>
-    <label>Unité <select id="unit" style="width:74px">
-      <option value="N">N</option><option value="daN">daN</option></select></label>
-    <div class="sep"></div>
-    <label><input type="checkbox" id="shDef" checked> Déformée</label>
-    <label>× <input type="range" id="ampl" min="1" max="400" value="60" style="width:96px">
-      <span id="amplV" style="font:12px var(--mono);width:44px"></span></label>
-    <div class="sep"></div>
-    <label><input type="checkbox" id="shLoads" checked> Charges</label>
-    <label><input type="checkbox" id="shVals" checked> Valeurs</label>
-    <label><input type="checkbox" id="shNodes"> Nœuds</label>
-    <div class="sep"></div>
-    <span id="offInfo" style="font-size:12.5px;color:var(--ink-2)"></span>
-    <button class="btn" id="btnRestore" style="display:none">Tout rétablir</button>
-  </div>
-
-  <div id="viewwrap">
-    <svg id="view"></svg>
-    <div id="tip"></div>
-    <div class="verdictbar" id="verdict"></div>
-    <div class="legend">
-      <div><i style="background:var(--comp)"></i>Compression</div>
-      <div><i style="background:var(--trac)"></i>Traction</div>
-      <div><i style="background:var(--def);height:2px"></i>Forme déformée</div>
-      <div><i style="background:var(--zero);height:2px"></i>Barre retirée — clic pour agir</div>
-    </div>
-  </div>
-
-  <div class="tabs" id="tabs">
-    <div class="tab on" data-p="pSol">Sollicitations</div>
-    <div class="tab" data-p="pDef">Déformation</div>
-    <div class="tab" data-p="pBar">Efforts par barre</div>
-    <div class="tab" data-p="pMat" data-vis="1">Comparer les matériaux</div>
-    <div class="tab" data-p="pLim" data-vis="2">Limites</div>
-    <div class="tab" data-p="pReac" data-vis="3">Réactions</div>
-    <div class="tab" data-p="pNote">Note de calcul</div>
-    <div class="tab" data-p="pObj">Objectifs du programme</div>
-  </div>
-  <div class="panelbox" id="pSol"></div>
-  <div class="panelbox hide" id="pDef"></div>
-  <div class="panelbox hide" id="pBar"></div>
-  <div class="panelbox hide" id="pMat"></div>
-  <div class="panelbox hide" id="pLim"></div>
-  <div class="panelbox hide" id="pReac"></div>
-  <div class="panelbox hide" id="pNote"></div>
-  <div class="panelbox hide" id="pObj"></div>
-</main>
-</div>
-<script>
-"use strict";
-/* =========================================================================
-   Simulation d'efforts sur fermette industrielle
-   Treillis plan à nœuds articulés — méthode des rigidités (déplacements)
-   Unités internes : longueurs en m, forces en daN, repère x→droite, y→haut
-   ========================================================================= */
-
-const $ = id => document.getElementById(id);
-const DEG = Math.PI / 180;
-
-/* ---------------------------- 1. GÉOMÉTRIE ---------------------------- */
-/* Fermette type W (Fink) généralisée à k panneaux par demi-ferme :
-     - arbalétriers  : T0..Tk (T0 = appui, Tk = faîtage)
-     - entrait       : B0..Bk (B0 = appui, Bk = pied de poinçon)
-     - montants      : Ti–Bi        (i = k → poinçon)
-     - diagonales    : Bi–T(i+1)    (i = 1..k-1)
-   Le treillis obtenu est isostatique : m + r = 2n.                        */
-function buildTruss(L, alphaDeg, k) {
-  const a = alphaDeg * DEG, tn = Math.tan(a), dx = L / (2 * k);
-  const nodes = [], index = new Map();
-  const key = (x, y) => x.toFixed(5) + '|' + y.toFixed(5);
-  function nd(x, y, kind) {
-    const kk = key(x, y);
-    if (index.has(kk)) return index.get(kk);
-    const i = nodes.length;
-    nodes.push({ i, x, y, kind });
-    index.set(kk, i);
-    return i;
-  }
-  const T = [], B = [], T2 = [], B2 = [];
-  for (let i = 0; i <= k; i++) T.push(nd(i * dx, i * dx * tn, i === k ? 'faîtage' : 'arba'));
-  B.push(T[0]);
-  for (let j = 1; j <= k; j++) B.push(nd(j * dx, 0, 'entrait'));
-  for (let i = 0; i <= k; i++) T2.push(nd(L - i * dx, i * dx * tn, i === k ? 'faîtage' : 'arba'));
-  B2.push(T2[0]);
-  for (let j = 1; j <= k; j++) B2.push(nd(L - j * dx, 0, 'entrait'));
-
-  const members = [], seen = new Set();
-  function add(p, q, type) {
-    if (p === q) return;
-    const kk = Math.min(p, q) + '-' + Math.max(p, q);
-    if (seen.has(kk)) return;
-    seen.add(kk);
-    members.push({ id: members.length, a: p, b: q, type });
-  }
-  for (let i = 0; i < k; i++) { add(T[i], T[i + 1], 'Arbalétrier'); add(T2[i], T2[i + 1], 'Arbalétrier'); }
-  for (let j = 0; j < k; j++) { add(B[j], B[j + 1], 'Entrait'); add(B2[j], B2[j + 1], 'Entrait'); }
-  for (let i = 1; i <= k; i++) {
-    add(T[i], B[i], i === k ? 'Poinçon' : 'Montant');
-    add(T2[i], B2[i], i === k ? 'Poinçon' : 'Montant');
-  }
-  for (let i = 1; i < k; i++) { add(B[i], T[i + 1], 'Diagonale'); add(B2[i], T2[i + 1], 'Diagonale'); }
-
-  members.forEach(m => {
-    const A = nodes[m.a], Bn = nodes[m.b];
-    m.dxx = Bn.x - A.x; m.dyy = Bn.y - A.y;
-    m.L = Math.hypot(m.dxx, m.dyy);
-    m.c = m.dxx / m.L; m.s = m.dyy / m.L;
-  });
-
-  return {
-    L, k, alpha: a, h: (L / 2) * tn, nodes, members,
-    supL: T[0], supR: T2[0],
-    topLeft: T, topRight: T2, botLeft: B, botRight: B2,
-    isostatique: members.length + 3 === 2 * nodes.length
-  };
-}
-
-/* ------------------------- 2. SOLVEUR TREILLIS ------------------------- */
-/* Résout K·u = F avec appui gauche articulé (ux=uy=0) et appui droit
-   simple (uy=0). Retourne efforts normaux (N>0 traction) et réactions.   */
-function solveTruss(tr, F, EA) {
-  const n = tr.nodes.length, ndof = 2 * n;
-  const K = new Float64Array(ndof * ndof);
-  tr.members.forEach(m => {
-    if (m.off) return;                                  // barre retirée par l'élève
-    const kk = EA(m) / m.L, c = m.c, s = m.s;
-    const cc = c * c * kk, ss = s * s * kk, cs = c * s * kk;
-    const d = [2 * m.a, 2 * m.a + 1, 2 * m.b, 2 * m.b + 1];
-    const ke = [
-      [cc, cs, -cc, -cs],
-      [cs, ss, -cs, -ss],
-      [-cc, -cs, cc, cs],
-      [-cs, -ss, cs, ss]];
-    for (let p = 0; p < 4; p++) for (let q = 0; q < 4; q++) K[d[p] * ndof + d[q]] += ke[p][q];
-  });
-
-  const fixed = new Set([2 * tr.supL, 2 * tr.supL + 1, 2 * tr.supR + 1]);
-  const free = [];
-  for (let i = 0; i < ndof; i++) if (!fixed.has(i)) free.push(i);
-
-  const nf = free.length;
-  const A = new Float64Array(nf * (nf + 1));
-  for (let i = 0; i < nf; i++) {
-    for (let j = 0; j < nf; j++) A[i * (nf + 1) + j] = K[free[i] * ndof + free[j]];
-    A[i * (nf + 1) + nf] = F[free[i]];
-  }
-  /* élimination de Gauss avec pivot partiel, en révélant le rang de la matrice.
-     Si le rang est incomplet, la structure est un MÉCANISME : le noyau de K donne
-     alors le mode de déplacement suivant lequel elle s'effondre. */
-  let scale = 0;
-  for (let i = 0; i < nf; i++) scale = Math.max(scale, Math.abs(A[i * (nf + 1) + i]));
-  const tol = Math.max(scale, 1) * 1e-10;
-  const pivCol = [], colRow = new Int32Array(nf).fill(-1);
-  let rk = 0;
-  for (let col = 0; col < nf; col++) {
-    let piv = -1, best = tol;
-    for (let i = rk; i < nf; i++) {
-      const v = Math.abs(A[i * (nf + 1) + col]);
-      if (v > best) { best = v; piv = i; }
-    }
-    if (piv < 0) continue;                              // colonne sans pivot → degré de mobilité
-    if (piv !== rk) for (let j = col; j <= nf; j++) {
-      const t = A[rk * (nf + 1) + j];
-      A[rk * (nf + 1) + j] = A[piv * (nf + 1) + j];
-      A[piv * (nf + 1) + j] = t;
-    }
-    const p = A[rk * (nf + 1) + col];
-    for (let i = rk + 1; i < nf; i++) {
-      const f = A[i * (nf + 1) + col] / p;
-      if (f === 0) continue;
-      for (let j = col; j <= nf; j++) A[i * (nf + 1) + j] -= f * A[rk * (nf + 1) + j];
-    }
-    pivCol.push(col); colRow[col] = rk; rk++;
-  }
-
-  if (rk < nf) {                                        /* --- mécanisme --- */
-    const libres = [];
-    for (let c = 0; c < nf; c++) if (colRow[c] < 0) libres.push(c);
-    const x = new Float64Array(nf);
-    x[libres[0]] = 1;
-    for (let i = rk - 1; i >= 0; i--) {
-      const c = pivCol[i];
-      let sum = 0;
-      for (let j = c + 1; j < nf; j++) sum += A[i * (nf + 1) + j] * x[j];
-      x[c] = -sum / A[i * (nf + 1) + c];
-    }
-    const mode = new Float64Array(ndof);
-    free.forEach((d, i) => mode[d] = x[i]);
-    let mx = 0;
-    for (let i = 0; i < ndof; i++) mx = Math.max(mx, Math.abs(mode[i]));
-    if (mx > 0) for (let i = 0; i < ndof; i++) mode[i] /= mx;
-    return { singular: true, mobilite: nf - rk, mode };
-  }
-
-  const uf = new Float64Array(nf);
-  for (let i = rk - 1; i >= 0; i--) {
-    const c = pivCol[i];
-    let sum = A[i * (nf + 1) + nf];
-    for (let j = c + 1; j < nf; j++) sum -= A[i * (nf + 1) + j] * uf[j];
-    uf[c] = sum / A[i * (nf + 1) + c];
-  }
-  const u = new Float64Array(ndof);
-  free.forEach((d, i) => u[d] = uf[i]);
-
-  const N = tr.members.map(m => m.off ? 0 : (EA(m) / m.L) *
-    (m.c * (u[2 * m.b] - u[2 * m.a]) + m.s * (u[2 * m.b + 1] - u[2 * m.a + 1])));
-
-  const R = {};
-  fixed.forEach(d => {
-    let v = 0;
-    for (let j = 0; j < ndof; j++) v += K[d * ndof + j] * u[j];
-    R[d] = v - F[d];
-  });
-  return { u, N, R, fixed: [...fixed] };
-}
-
-/* ---------------------------- 3. CHARGES ------------------------------ */
-/* Longueurs d'influence de chaque nœud (rampant et projection horizontale) */
-function tributaries(tr) {
-  const n = tr.nodes.length;
-  const ramp = new Array(n).fill(0), hor = new Array(n).fill(0), horBot = new Array(n).fill(0);
-  tr.members.forEach(m => {
-    if (m.off) return;
-    if (m.type === 'Arbalétrier') {
-      ramp[m.a] += m.L / 2; ramp[m.b] += m.L / 2;
-      hor[m.a] += Math.abs(m.dxx) / 2; hor[m.b] += Math.abs(m.dxx) / 2;
-    } else if (m.type === 'Entrait') {
-      horBot[m.a] += Math.abs(m.dxx) / 2; horBot[m.b] += Math.abs(m.dxx) / 2;
-    }
-  });
-  return { ramp, hor, horBot };
-}
-
-/* Vecteur charge vide */
-const zeroF = tr => new Float64Array(2 * tr.nodes.length);
-
-/* Construction de tous les cas de charge élémentaires */
-function buildLoadCases(tr, p) {
-  const T = tributaries(tr), e = p.entraxe, cases = {};
-  const debRamp = p.debord / Math.cos(tr.alpha);   // longueur de rampant en débord
-
-  /* --- G : couverture + plafond + débord + poids propre --- */
-  const G = zeroF(tr);
-  tr.nodes.forEach((nd, i) => {
-    if (T.ramp[i] > 0) G[2 * i + 1] -= p.gCouv * e * T.ramp[i];
-    if (T.horBot[i] > 0) G[2 * i + 1] -= p.gPlaf * e * T.horBot[i];
-  });
-  [tr.supL, tr.supR].forEach(i => { G[2 * i + 1] -= p.gCouv * e * debRamp; });
-  let poidsPropre = 0;
-  if (p.pp) {
-    tr.members.forEach(m => {
-      if (m.off) return;
-      const w = p.area(m) * p.rho * 0.981;            // daN/m
-      const q = w * m.L / 2;
-      G[2 * m.a + 1] -= q; G[2 * m.b + 1] -= q;
-      poidsPropre += w * m.L;
-    });
-  }
-  cases.G = G;
-
-  /* --- S : neige symétrique (projection horizontale) --- */
-  const S = zeroF(tr);
-  tr.nodes.forEach((nd, i) => { if (T.hor[i] > 0) S[2 * i + 1] -= p.s * e * T.hor[i]; });
-  [tr.supL, tr.supR].forEach(i => { S[2 * i + 1] -= p.s * e * p.debord; });
-  cases.S = S;
-
-  /* --- Sd : neige dissymétrique (versant gauche plein, droit à 50 %) --- */
-  const Sd = zeroF(tr);
-  tr.nodes.forEach((nd, i) => {
-    if (T.hor[i] > 0) {
-      const f = nd.x < tr.L / 2 - 1e-9 ? 1 : (Math.abs(nd.x - tr.L / 2) < 1e-9 ? 0.75 : 0.5);
-      Sd[2 * i + 1] -= p.s * e * T.hor[i] * f;
-    }
-  });
-  Sd[2 * tr.supL + 1] -= p.s * e * p.debord;
-  Sd[2 * tr.supR + 1] -= 0.5 * p.s * e * p.debord;
-  cases.Sd = Sd;
-
-  /* --- Wp / Ws : vent, perpendiculaire au rampant --- */
-  const sa = Math.sin(tr.alpha), ca = Math.cos(tr.alpha);
-  function windCase(c1, c2) {
-    const W = zeroF(tr);
-    /* charge répartie sur chaque arbalétrier, portée par la normale du versant */
-    tr.members.forEach(m => {
-      if (m.type !== 'Arbalétrier' || m.off) return;
-      const xm = (tr.nodes[m.a].x + tr.nodes[m.b].x) / 2, left = xm < tr.L / 2;
-      const nx = left ? -sa : sa, ny = ca;
-      const F = (left ? c1 : c2) * p.qp * e * m.L;     // + = pression (vers l'intérieur)
-      W[2 * m.a] -= F / 2 * nx; W[2 * m.a + 1] -= F / 2 * ny;
-      W[2 * m.b] -= F / 2 * nx; W[2 * m.b + 1] -= F / 2 * ny;
-    });
-    /* débords : report direct sur les nœuds d'appui */
-    const F1 = c1 * p.qp * e * debRamp, F2 = c2 * p.qp * e * debRamp;
-    W[2 * tr.supL] -= F1 * (-sa); W[2 * tr.supL + 1] -= F1 * ca;
-    W[2 * tr.supR] -= F2 * (sa); W[2 * tr.supR + 1] -= F2 * ca;
-    return W;
-  }
-  cases.Wp = windCase(p.cp1p, p.cp2p);
-  cases.Ws = windCase(p.cp1s, p.cp2s);
-
-  /* --- Q : charge ponctuelle --- */
-  const Q = zeroF(tr);
-  if (p.ptNode >= 0 && p.ptNode < tr.nodes.length) {
-    Q[2 * p.ptNode] += p.ptFx;
-    Q[2 * p.ptNode + 1] -= p.ptFy;
-  }
-  cases.Q = Q;
-
-  cases._meta = { poidsPropre, trib: T, debRamp };
-  return cases;
-}
-
-</script>
-<script>
-"use strict";
-/* =====================================================================
-   6. MATÉRIAUX — valeurs indicatives à usage pédagogique
-   E   : module d'élasticité (MPa)      rho : masse volumique (kg/m³)
-   st  : contrainte admissible en traction (MPa)
-   sc  : contrainte admissible en compression (MPa)
-   co2 : empreinte carbone (kg CO₂e par kg de matériau)
-   ===================================================================== */
-const MATERIAUX = [
-  { id: 'c24', nom: 'Bois résineux C24 (sapin/épicéa)', E: 11000, rho: 420, st: 14, sc: 21, co2: 0.45, rec: 'Réemploi, panneaux, valorisation énergétique', fam: 'Bois' },
-  { id: 'gl24', nom: 'Bois lamellé-collé GL24h', E: 11500, rho: 430, st: 16.5, sc: 24, co2: 0.65, rec: 'Réemploi, valorisation énergétique', fam: 'Bois' },
-  { id: 'cp', nom: 'Contreplaqué', E: 5000, rho: 600, st: 10, sc: 12, co2: 0.90, rec: 'Valorisation énergétique', fam: 'Bois' },
-  { id: 'balsa', nom: 'Balsa (maquette)', E: 3000, rho: 160, st: 15, sc: 10, co2: 0.30, rec: 'Compostable, valorisation', fam: 'Bois' },
-  { id: 'carton', nom: 'Carton fort (maquette)', E: 2000, rho: 700, st: 8, sc: 5, co2: 1.00, rec: 'Recyclable en boucle', fam: 'Fibres' },
-  { id: 'bambou', nom: 'Bambou', E: 18000, rho: 700, st: 60, sc: 40, co2: 0.20, rec: 'Compostable, réemploi', fam: 'Fibres' },
-  { id: 'pla', nom: 'PLA (impression 3D)', E: 3500, rho: 1240, st: 50, sc: 55, co2: 2.10, rec: 'Recyclable, compostable industriel', fam: 'Polymère' },
-  { id: 'abs', nom: 'ABS', E: 2300, rho: 1050, st: 40, sc: 45, co2: 3.10, rec: 'Recyclable', fam: 'Polymère' },
-  { id: 'pvc', nom: 'PVC rigide', E: 3000, rho: 1400, st: 45, sc: 60, co2: 2.40, rec: 'Recyclable', fam: 'Polymère' },
-  { id: 's235', nom: 'Acier S235', E: 210000, rho: 7850, st: 235, sc: 235, co2: 1.90, rec: 'Recyclable à l\'infini', fam: 'Métal' },
-  { id: 'alu', nom: 'Aluminium 6060', E: 70000, rho: 2700, st: 140, sc: 140, co2: 8.20, rec: 'Recyclable, forte économie au recyclage', fam: 'Métal' },
-  { id: 'beton', nom: 'Béton C25/30', E: 30000, rho: 2400, st: 2, sc: 25, co2: 0.11, rec: 'Concassage, granulats recyclés', fam: 'Minéral' }
-];
-const matById = id => MATERIAUX.find(m => m.id === id) || MATERIAUX[0];
-
-/* ================== 7. CAS DE CHARGE PROPOSÉS ======================== */
-const CAS_PEDA = [
-  { id: 'G', nom: 'Charges permanentes (toiture + plafond)', f: { G: 1 } },
-  { id: 'GS', nom: 'Permanentes + neige', f: { G: 1, S: 1 } },
-  { id: 'S', nom: 'Neige seule', f: { S: 1 } },
-  { id: 'Q', nom: 'Charge d\'essai seule', f: { Q: 1 } },
-  { id: 'GQ', nom: 'Permanentes + charge d\'essai', f: { G: 1, Q: 1 } },
-  { id: 'GSQ', nom: 'Permanentes + neige + charge d\'essai', f: { G: 1, S: 1, Q: 1 } }
-];
-const CAS_EXPERT = [
-  { id: 'Sd', nom: '[exp] Neige dissymétrique seule', f: { Sd: 1 } },
-  { id: 'Wp', nom: '[exp] Vent en pression', f: { Wp: 1 } },
-  { id: 'Ws', nom: '[exp] Vent en soulèvement', f: { Ws: 1 } },
-  { id: 'ELU1', nom: '[exp] ELU · 1,35 G + 1,5 S', f: { G: 1.35, S: 1.5 } },
-  { id: 'ELU2', nom: '[exp] ELU · 1,35 G + 1,5 S(dissym.)', f: { G: 1.35, Sd: 1.5 } },
-  { id: 'ELU4', nom: '[exp] ELU · 1,35 G + 1,5 W(p) + 0,75 S', f: { G: 1.35, Wp: 1.5, S: 0.75 } },
-  { id: 'ELU5', nom: '[exp] ELU · 0,9 G + 1,5 W(soulèv.)', f: { G: 0.9, Ws: 1.5 } }
-];
-
-/* ==================== 8. LECTURE DES PARAMÈTRES ====================== */
-const num = (id, def) => { const v = parseFloat($(id).value); return isFinite(v) ? v : def; };
-function parseSec(txt, def) {
-  const m = String(txt).toLowerCase().replace(',', '.').match(/([\d.]+)\s*[x*×]\s*([\d.]+)/);
-  return m ? { b: parseFloat(m[1]), h: parseFloat(m[2]) } : def;
-}
-function neige(zoneVal, alt, alphaDeg) {
-  let d = 0;
-  if (alt > 1000) d = 3.5 * alt / 1000 - 2.45;
-  else if (alt > 500) d = 1.5 * alt / 1000 - 0.45;
-  else if (alt > 200) d = alt / 1000 - 0.20;
-  const sk = zoneVal + d;
-  const mu = alphaDeg <= 30 ? 0.8 : (alphaDeg >= 60 ? 0 : 0.8 * (60 - alphaDeg) / 30);
-  return { sk0: zoneVal, ds: d, sk, mu, s: mu * sk * 100 };
-}
-function vent(vb, z0, zmin, z) {
-  const ze = Math.max(z, zmin);
-  const kr = 0.19 * Math.pow(z0 / 0.05, 0.07);
-  const cr = kr * Math.log(ze / z0);
-  const vm = cr * vb, Iv = 1 / Math.log(ze / z0);
-  return { kr, cr, vm, Iv, qp: (1 + 7 * Iv) * 0.5 * 1.225 * vm * vm / 10 };
-}
-
-let NIVEAU = 0;                       // 0 = 5ᵉ, 1 = 4ᵉ, 2 = 3ᵉ, 3 = expert
-
-function readParams(matOverride) {
-  const alphaDeg = num('alpha', 30);
-  const maq = $('situ').value === 'maq';
-  const mat = matOverride || matById($('mat').value);
-
-  const sn = neige(parseFloat($('snowZone').value.split('|')[0]), num('alt', 0), alphaDeg);
-  const sNeige = maq ? 0 : ($('snowAuto').checked ? sn.s : num('sMan', 0));
-  const [z0, zmin, cat] = $('windTer').value.split('|');
-  const vt = vent(parseFloat($('windReg').value), parseFloat(z0), parseFloat(zmin), num('windZ', 8));
-
-  const secAr = parseSec($('secAr').value, { b: 36, h: 122 });
-  const secEn = parseSec($('secEn').value, { b: 36, h: 122 });
-  const secDi = parseSec($('secDi').value, { b: 36, h: 97 });
-  const secOf = m => m.type === 'Arbalétrier' ? secAr : (m.type === 'Entrait' ? secEn : secDi);
-
-  /* charge d'essai : saisie en N ou en kg, convertie en daN (repère y vers le bas) */
-  const pf = num('ptF', 0);
-  const ptFy = $('ptUnit').value === 'kg' ? pf * 0.981 : pf / 10;
-
-  return {
-    maq, mat, L: num('L', 8), alphaDeg,
-    k: Math.max(1, Math.min(5, Math.round(num('k', 2)))),
-    entraxe: maq ? 1 : num('entraxe', 0.6), debord: maq ? 0 : num('debord', 0),
-    secAr, secEn, secDi, secOf,
-    area: m => { const s = secOf(m); return s.b * s.h / 1e6; },
-    EA: m => { const s = secOf(m); return mat.E * 1e5 * s.b * s.h / 1e6; },
-    rho: mat.rho, pp: $('pp').checked,
-    gCouv: maq ? 0 : num('gCouv', 0), gPlaf: maq ? 0 : num('gPlaf', 0),
-    s: sNeige, neige: sn, ventCalc: vt, cat,
-    qp: NIVEAU >= 3 && !maq ? vt.qp : 0,
-    cp1p: num('cp1p', .5), cp2p: num('cp2p', -.5), cp1s: num('cp1s', -.9), cp2s: num('cp2s', -.7),
-    ptNode: parseInt($('ptNode').value, 10), ptFx: 0, ptFy
-  };
-}
-
-/* ===================== 9. CALCUL D'UN MODÈLE ========================= */
-function buildModel(P, off) {
-  const tr = buildTruss(P.L, P.alphaDeg, P.k);
-  tr.members.forEach(m => m.off = !!(off && off.has(m.id)));
-  tr.actifs = tr.members.filter(m => !m.off).length;
-  tr.retirees = tr.members.length - tr.actifs;
-  tr.isostatique = tr.actifs + 3 === 2 * tr.nodes.length;
-  const cases = buildLoadCases(tr, P);
-  const elem = {};
-  for (const c of ['G', 'S', 'Sd', 'Wp', 'Ws', 'Q']) {
-    const r = solveTruss(tr, cases[c], P.EA);
-    if (r.singular) return { tr, cases, elem: null, P, singular: true, mobilite: r.mobilite, mode: r.mode };
-    elem[c] = r;
-  }
-  return { tr, cases, elem, P };
-}
-
-/* Vecteur des charges d'un cas, utilisable même quand la structure est instable */
-function loadVector(M, f) {
-  const F = new Float64Array(2 * M.tr.nodes.length);
-  for (const c in f) { const g = f[c]; M.cases[c].forEach((v, i) => F[i] += g * v); }
-  return F;
-}
-
-/* Combinaison linéaire (élasticité linéaire) */
-function combine(M, f) {
-  const nd = 2 * M.tr.nodes.length;
-  const N = M.tr.members.map(() => 0), R = {}, F = new Float64Array(nd), u = new Float64Array(nd);
-  for (const c in f) {
-    const g = f[c], e = M.elem[c];
-    if (!e) continue;
-    e.N.forEach((v, i) => N[i] += g * v);
-    for (const d in e.R) R[d] = (R[d] || 0) + g * e.R[d];
-    for (let i = 0; i < nd; i++) { F[i] += g * M.cases[c][i]; u[i] += g * e.u[i]; }
-  }
-  return { N, R, F, u };
-}
-
-/* Indicateurs : déformation, contraintes, taux de travail */
-function metrics(M, res) {
-  const P = M.P, mat = P.mat;
-  let fleche = 0, nodeF = 0, dep = 0;
-  M.tr.nodes.forEach((n, i) => {
-    const uy = Math.abs(res.u[2 * i + 1]), ut = Math.hypot(res.u[2 * i], res.u[2 * i + 1]);
-    if (uy > fleche) { fleche = uy; nodeF = i; }
-    if (ut > dep) dep = ut;
-  });
-  const bars = M.tr.members.map((m, i) => {
-    const s = P.secOf(m);
-    if (m.off) return { i, m, N: 0, sec: s, sig: 0, adm: mat.st, dL: 0, taux: 0, sol: 'retirée' };
-    const N = res.N[i], A = s.b * s.h;
-    const sig = N * 10 / A;                                   // MPa (N en daN)
-    const adm = N >= 0 ? mat.st : mat.sc;
-    const dL = N * m.L / P.EA(m);                             // m
-    return {
-      i, m, N, sec: s, sig, adm, dL: dL * 1000,
-      taux: Math.abs(sig) / adm,
-      sol: Math.abs(N) < 1e-6 ? 'nulle' : (N > 0 ? 'traction' : 'compression')
-    };
-  });
-  const actifs = bars.filter(b => !b.m.off);
-  const pire = actifs.reduce((a, b) => b.taux > a.taux ? b : a, actifs[0] || bars[0]);
-  const masse = M.tr.members.reduce((s, m) => s + (m.off ? 0 : P.area(m) * m.L * P.rho), 0);
-  return {
-    fleche: fleche * 1000, nodeF, dep: dep * 1000, bars, pire,
-    masse, co2: masse * mat.co2
-  };
-}
-
-/* Critère de déformation admissible (mm) */
-function critere(P) {
-  const t = $('critType').value;
-  if (t === 'lib') return { val: num('critVal', 10), txt: 'valeur imposée' };
-  const d = parseFloat(t);
-  return { val: P.L * 1000 / d, txt: 'portée / ' + d };
-}
-</script>
-<script>
-"use strict";
-/* ======================= 10. ÉTAT GLOBAL / FORMATS =================== */
-let M = null, RES = null, MET = null, CRIT = null, SEL = -1;
-let OFF = new Set(), NB_BARRES = -1, ANIM = 0;   // barres retirées par l'élève
-
-function toggleBarre(id) {
-  if (OFF.has(id)) OFF.delete(id); else OFF.add(id);
-  refresh();
-}
-
-const fmt = (v, d = 0) => (Math.abs(v) < 0.5 * Math.pow(10, -d) ? 0 : v)
-  .toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
-const UF = () => $('unit').value === 'N' ? 10 : 1;      // daN → unité d'affichage
-const UN = () => $('unit').value;
-const fF = (daN, d = 0) => fmt(daN * UF(), d);
-const colOf = N => Math.abs(N) < 1e-3 ? 'var(--zero)' : (N > 0 ? 'var(--trac)' : 'var(--comp)');
-const tagSol = s => s === 'traction' ? '<span class="tag t">traction</span>'
-  : s === 'compression' ? '<span class="tag c">compression</span>' : '<span class="tag z">nulle</span>';
-const casList = () => {
-  const maq = $('situ').value === 'maq';
-  const base = maq ? CAS_PEDA.filter(c => ['G', 'Q', 'GQ'].includes(c.id)) : CAS_PEDA;
-  return NIVEAU >= 3 && !maq ? base.concat(CAS_EXPERT) : base;
-};
-const casCur = () => { const l = casList(); return l.find(c => c.id === $('combo').value) || l[0]; };
-
-/* ========================= 11. NIVEAU / UI =========================== */
-function applyLevel() {
-  document.querySelectorAll('[data-vis]').forEach(el => {
-    el.style.display = NIVEAU >= +el.dataset.vis ? '' : 'none';
-  });
-  document.querySelectorAll('[data-en]').forEach(el => {
-    el.disabled = NIVEAU < +el.dataset.en;
-  });
-  $('critVal').disabled = NIVEAU < 1 || $('critType').value !== 'lib';
-  $('mes').disabled = false;
-  const txt = [
-    'Niveau 5ᵉ — la simulation est <b>fournie et verrouillée</b> : identifie la sollicitation de chaque barre, lis la déformation obtenue, puis compare-la à ta mesure expérimentale.',
-    'Niveau 4ᵉ — tu peux <b>paramétrer la simulation</b> : choisis la nature du matériau et les dimensions des barres, puis vérifie la tenue mécanique.',
-    'Niveau 3ᵉ — tu paramètres tout et tu <b>explores les limites</b> : jusqu\'à quelle charge la fermette respecte-t-elle la déformation autorisée ?',
-    'Mode expert — modèle complet : vent, neige normalisée, combinaisons Eurocode et réactions d\'appui.'
-  ][NIVEAU];
-  $('lockNote').style.display = 'block';
-  $('lockNote').innerHTML = txt;
-  const prev = $('combo').value;
-  $('combo').innerHTML = casList().map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
-  const l = casList();
-  const pref = ['GS', 'GQ'].find(id => l.some(c => c.id === id)) || l[0].id;
-  $('combo').value = l.some(c => c.id === prev) ? prev : pref;
-  /* onglets masqués : replier sur le premier visible */
-  const cur = document.querySelector('.tab.on');
-  if (cur && cur.style.display === 'none') showTab(document.querySelector('.tab'));
-}
-
-function showTab(t) {
-  document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
-  document.querySelectorAll('.panelbox').forEach(x => x.classList.add('hide'));
-  t.classList.add('on');
-  $(t.dataset.p).classList.remove('hide');
-}
-
-function syncNodeSelect(tr) {
-  const sel = $('ptNode'), prev = sel.value;
-  sel.innerHTML = tr.nodes.map((n, i) =>
-    `<option value="${i}">${i} — ${n.kind} (x = ${n.x.toFixed(2)} m)</option>`).join('');
-  if (prev !== '' && +prev < tr.nodes.length) sel.value = prev;
-  else sel.value = String(tr.topLeft[tr.k]);
-}
-
-/* ============================ 12. RENDU ============================== */
-function arrow(x1, y1, x2, y2, col, w) {
-  const a = Math.atan2(y2 - y1, x2 - x1), hl = 9, hw = 4;
-  const hx = x2 - hl * Math.cos(a), hy = y2 - hl * Math.sin(a);
-  return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${hy.toFixed(1)}"
-     stroke="${col}" stroke-width="${w}"/>
-   <polygon points="${x2.toFixed(1)},${y2.toFixed(1)}
-     ${(hx - hw * Math.sin(a)).toFixed(1)},${(hy + hw * Math.cos(a)).toFixed(1)}
-     ${(hx + hw * Math.sin(a)).toFixed(1)},${(hy - hw * Math.cos(a)).toFixed(1)}" fill="${col}"/>`;
-}
-
-function draw() {
-  const tr = M.tr, svg = $('view'), wrap = $('viewwrap');
-  const W = wrap.clientWidth || 900, H = wrap.clientHeight || 420;
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-
-  const xs = tr.nodes.map(n => n.x), ys = tr.nodes.map(n => n.y);
-  const minx = Math.min(...xs), maxx = Math.max(...xs);
-  const miny = Math.min(...ys), maxy = Math.max(...ys);
-  const sc = Math.min((W - 190) / Math.max(maxx - minx, .1), (H - 205) / Math.max(maxy - miny, .1));
-  const gw = (maxx - minx) * sc, gh = (maxy - miny) * sc;
-  const ox = (W - gw) / 2 - minx * sc, y0 = (H - gh) / 2 + gh - 14;
-  const X = x => ox + x * sc, Y = y => y0 - (y - miny) * sc;
-
-  /* facteur d'amplification de la déformée */
-  let umax = 0;
-  tr.nodes.forEach((n, i) => umax = Math.max(umax, Math.hypot(RES.u[2 * i], RES.u[2 * i + 1])));
-  const A0 = umax > 1e-12 ? 0.06 * (maxx - minx) / umax : 1;
-  const amp = A0 * (parseFloat($('ampl').value) / 60);
-  $('amplV').textContent = umax > 1e-12 ? '×' + fmt(amp) : '—';
-  const DX = i => X(tr.nodes[i].x + amp * RES.u[2 * i]);
-  const DY = i => Y(tr.nodes[i].y + amp * RES.u[2 * i + 1]);
-
-  const Nmax = Math.max(1e-6, ...RES.N.map(Math.abs));
-  let g = '';
-
-  /* forme déformée */
-  if ($('shDef').checked && umax > 1e-12) {
-    tr.members.forEach(m => {
-      g += `<line x1="${DX(m.a).toFixed(1)}" y1="${DY(m.a).toFixed(1)}"
-         x2="${DX(m.b).toFixed(1)}" y2="${DY(m.b).toFixed(1)}"
-         stroke="var(--def)" stroke-width="1.6" stroke-dasharray="5 3" opacity=".95"/>`;
-    });
-  }
-
-  /* barres — une barre retirée est tracée en fantôme avec une croix */
-  tr.members.forEach((m, i) => {
-    const N = RES.N[i], A = tr.nodes[m.a], B = tr.nodes[m.b];
-    const x1 = X(A.x), y1 = Y(A.y), x2 = X(B.x), y2 = Y(B.y);
-    if (m.off) {
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, r = 6;
-      g += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--zero)"
-         stroke-width="1.4" stroke-dasharray="3 4" opacity=".7"/>
-        <line x1="${mx - r}" y1="${my - r}" x2="${mx + r}" y2="${my + r}" stroke="var(--ko)" stroke-width="2"/>
-        <line x1="${mx - r}" y1="${my + r}" x2="${mx + r}" y2="${my - r}" stroke="var(--ko)" stroke-width="2"/>`;
-    } else {
-      const w = 2 + 7 * Math.abs(N) / Nmax;
-      g += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
-         stroke="${colOf(N)}" stroke-width="${w.toFixed(2)}" stroke-linecap="round"
-         ${SEL === i ? 'stroke-dasharray="7 3"' : ''}/>`;
-    }
-    g += `<line class="hit" data-m="${i}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
-       stroke="transparent" stroke-width="15" style="cursor:pointer"/>`;
-  });
-
-  /* valeurs */
-  if ($('shVals').checked) {
-    tr.members.forEach((m, i) => {
-      if (m.off) return;
-      const N = RES.N[i], A = tr.nodes[m.a], B = tr.nodes[m.b];
-      const mx = (X(A.x) + X(B.x)) / 2, my = (Y(A.y) + Y(B.y)) / 2;
-      let ang = Math.atan2(Y(B.y) - Y(A.y), X(B.x) - X(A.x)) * 180 / Math.PI;
-      if (ang > 90 || ang < -90) ang += 180;
-      const a = ang * Math.PI / 180, off = 11;
-      const tx = mx - Math.sin(a) * off, ty = my + Math.cos(a) * off;
-      g += `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}"
-        transform="rotate(${ang.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)})"
-        text-anchor="middle" font-size="11" font-family="ui-monospace,monospace"
-        fill="${colOf(N)}" paint-order="stroke" stroke="var(--bg)" stroke-width="3">${fF(N)}</text>`;
-    });
-  }
-
-  /* nœuds */
-  tr.nodes.forEach((n, i) => {
-    g += `<circle cx="${X(n.x)}" cy="${Y(n.y)}" r="3.2" fill="var(--panel)" stroke="var(--ink-2)" stroke-width="1.4"/>`;
-    if ($('shNodes').checked)
-      g += `<text x="${X(n.x) + 7}" y="${Y(n.y) - 7}" font-size="10.5" fill="var(--ink-2)"
-        font-family="ui-monospace,monospace">${i}</text>`;
-  });
-
-  /* appuis */
-  function support(i, roller) {
-    const n = tr.nodes[i], x = X(n.x), y = Y(n.y), s = 11;
-    let o = `<polygon points="${x},${y} ${x - s},${y + s * 1.5} ${x + s},${y + s * 1.5}"
-       fill="none" stroke="var(--ink-2)" stroke-width="1.6"/>
-     <line x1="${x - s - 3}" y1="${y + s * 1.5}" x2="${x + s + 3}" y2="${y + s * 1.5}" stroke="var(--ink-2)" stroke-width="1.6"/>`;
-    if (roller) {
-      o += `<circle cx="${x - 5}" cy="${y + s * 1.5 + 4}" r="3.5" fill="none" stroke="var(--ink-2)" stroke-width="1.3"/>
-        <circle cx="${x + 5}" cy="${y + s * 1.5 + 4}" r="3.5" fill="none" stroke="var(--ink-2)" stroke-width="1.3"/>`;
-    } else {
-      for (let t = -3; t <= 3; t++)
-        o += `<line x1="${x + t * 4}" y1="${y + s * 1.5}" x2="${x + t * 4 - 4}" y2="${y + s * 1.5 + 5}" stroke="var(--ink-2)" stroke-width="1"/>`;
-    }
-    return o;
-  }
-  g += support(tr.supL, false) + support(tr.supR, true);
-
-  /* charges */
-  if ($('shLoads').checked) {
-    let fm = 0;
-    tr.nodes.forEach((n, i) => fm = Math.max(fm, Math.hypot(RES.F[2 * i], RES.F[2 * i + 1])));
-    if (fm > 1e-6) tr.nodes.forEach((n, i) => {
-      const fx = RES.F[2 * i], fy = RES.F[2 * i + 1], mag = Math.hypot(fx, fy);
-      if (mag < 1e-6) return;
-      const len = 15 + 32 * mag / fm, ux = fx / mag, uy = -fy / mag;
-      const x2 = X(n.x), y2 = Y(n.y);
-      g += arrow(x2 - ux * len, y2 - uy * len, x2, y2, 'var(--accent)', 1.6);
-      g += `<text x="${(x2 - ux * (len + 5)).toFixed(1)}" y="${(y2 - uy * (len + 5) + 3).toFixed(1)}"
-        font-size="10" fill="var(--accent)" font-family="ui-monospace,monospace"
-        text-anchor="${ux > .3 ? 'end' : (ux < -.3 ? 'start' : 'middle')}">${fF(mag)}</text>`;
-    });
-  }
-
-  /* flèche mesurée sur le schéma */
-  if (MET && MET.fleche > 1e-6) {
-    const i = MET.nodeF, x = DX(i), ya = Y(tr.nodes[i].y), yb = DY(i);
-    if (Math.abs(yb - ya) > 3) {
-      g += `<line x1="${x}" y1="${ya}" x2="${x}" y2="${yb}" stroke="var(--def)" stroke-width="1.2" stroke-dasharray="2 2"/>
-        <text x="${x + 8}" y="${(ya + yb) / 2 + 4}" font-size="11.5" fill="var(--def)"
-          font-family="ui-monospace,monospace" paint-order="stroke" stroke="var(--bg)" stroke-width="3"
-          >f = ${fmt(MET.fleche, 2)} mm</text>`;
-    }
-  }
-
-  /* cote de portée */
-  const yd = Y(miny) + 104;
-  g += `<line x1="${X(0)}" y1="${yd}" x2="${X(tr.L)}" y2="${yd}" stroke="var(--ink-2)" stroke-width="1"/>
-    <line x1="${X(0)}" y1="${yd - 5}" x2="${X(0)}" y2="${yd + 5}" stroke="var(--ink-2)"/>
-    <line x1="${X(tr.L)}" y1="${yd - 5}" x2="${X(tr.L)}" y2="${yd + 5}" stroke="var(--ink-2)"/>
-    <text x="${X(tr.L / 2)}" y="${yd - 7}" text-anchor="middle" font-size="11" fill="var(--ink-2)"
-      >portée ${fmt(tr.L, 2)} m — hauteur ${fmt(tr.h, 2)} m — pente ${fmt(M.P.alphaDeg, 1)}°</text>`;
-
-  svg.innerHTML = g;
-  svg.querySelectorAll('.hit').forEach(el => {
-    el.addEventListener('mousemove', ev => tip(ev, +el.dataset.m));
-    el.addEventListener('mouseleave', () => $('tip').style.display = 'none');
-    el.addEventListener('click', () => toggleBarre(tr.members[+el.dataset.m].id));
-  });
-
-  /* animation du mode d'effondrement lorsque la structure est un mécanisme */
-  if (ANIM) { cancelAnimationFrame(ANIM); ANIM = 0; }
-  if (M.singular) {
-    const gm = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    svg.appendChild(gm);
-    const amp = 0.13 * (maxx - minx), t0 = performance.now();
-    const pas = () => {
-      const a = amp * (1 - Math.cos((performance.now() - t0) / 620)) / 2;
-      let o = '';
-      tr.members.forEach(m => {
-        if (m.off) return;
-        const ax = X(tr.nodes[m.a].x + a * M.mode[2 * m.a]), ay = Y(tr.nodes[m.a].y + a * M.mode[2 * m.a + 1]);
-        const bx = X(tr.nodes[m.b].x + a * M.mode[2 * m.b]), by = Y(tr.nodes[m.b].y + a * M.mode[2 * m.b + 1]);
-        o += `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}"
-           stroke="var(--ko)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/>`;
-      });
-      gm.innerHTML = o;
-      ANIM = requestAnimationFrame(pas);
-    };
-    pas();
-  }
-}
-
-function tip(ev, i) {
-  const t = $('tip'), r = $('viewwrap').getBoundingClientRect();
-  const m = M.tr.members[i];
-  const place = () => {
-    t.style.display = 'block';
-    t.style.left = Math.min(ev.clientX - r.left + 14, r.width - 210) + 'px';
-    t.style.top = Math.min(ev.clientY - r.top + 14, r.height - 140) + 'px';
-  };
-  if (m.off) {
-    t.textContent = `Barre ${i + 1} — ${m.type}
-RETIRÉE
-clic pour la remettre en place`;
-    return place();
-  }
-  if (!MET) {
-    t.textContent = `Barre ${i + 1} — ${m.type}
-clic pour la retirer
-(calcul impossible : mécanisme)`;
-    return place();
-  }
-  const b = MET.bars[i];
-  t.textContent = `Barre ${i + 1} — ${b.m.type}
-sollicitation  ${b.sol.toUpperCase()}
-effort         ${fF(b.N)} ${UN()}
-longueur       ${fmt(b.m.L, 3)} m
-section        ${b.sec.b} × ${b.sec.h} mm
-contrainte     ${fmt(b.sig, 2)} MPa  /  ${fmt(b.adm, 1)} adm.
-taux de travail ${fmt(b.taux * 100, 0)} %
-allongement    ${fmt(b.dL, 3)} mm
-clic pour retirer cette barre`;
-  place();
-}
-
-/* ========================== 13. VERDICTS ============================= */
-function verdicts() {
-  if (!MET) {
-    const noms = [...OFF].sort((a, b) => a - b).map(i => i + 1).join(', ');
-    $('verdict').innerHTML = `<div class="vcard alert" style="min-width:250px">
-      <div class="k">⚠ Mécanisme — la structure s'effondre</div>
-      <div class="v">${M.mobilite} degré${M.mobilite > 1 ? 's' : ''} de liberté</div>
-      <div class="k">barre${OFF.size > 1 ? 's' : ''} retirée${OFF.size > 1 ? 's' : ''} : ${noms || '—'}</div></div>`;
-    return;
-  }
-  const okDef = MET.fleche <= CRIT.val;
-  const okRes = MET.pire.taux <= 1;
-  let h = `<div class="vcard ${okDef ? 'ok' : 'ko'}">
-      <div class="k">Déformation</div><div class="v">${fmt(MET.fleche, 2)} mm</div>
-      <div class="k">max ${fmt(CRIT.val, 1)} mm</div></div>
-    <div class="vcard ${okRes ? 'ok' : 'ko'}">
-      <div class="k">Taux de travail</div><div class="v">${fmt(MET.pire.taux * 100, 0)} %</div>
-      <div class="k">barre ${MET.pire.i + 1} · ${MET.pire.m.type}</div></div>`;
-  const mes = num('mes', 0);
-  if (mes > 0 && MET.fleche > 1e-9) {
-    const ec = (mes - MET.fleche) / MET.fleche * 100;
-    h += `<div class="vcard ${Math.abs(ec) <= 20 ? 'ok' : 'ko'}">
-      <div class="k">Écart réel / simulé</div><div class="v">${ec > 0 ? '+' : ''}${fmt(ec, 1)} %</div>
-      <div class="k">mesuré ${fmt(mes, 2)} mm</div></div>`;
-  }
-  $('verdict').innerHTML = h;
-}
-
-/* =========================== 14. ONGLETS ============================= */
-function panSollicitations() {
-  if (!MET) { $('pSol').innerHTML = mecaMsg(`C'est la démonstration de la <b>triangulation</b> : chaque triangle doit rester fermé pour que la fermette tienne. Une barre qui ne portait presque rien peut être indispensable à la stabilité.`); return; }
-  const has = s => MET.bars.some(b => b.sol === s);
-  const modes = [
-    { n: 'Traction', k: 'traction', d: 'La barre est <b>étirée</b> : les forces tendent à l\'allonger. L\'entrait d\'une fermette travaille en traction.', on: has('traction') },
-    { n: 'Compression', k: 'compression', d: 'La barre est <b>écrasée</b> : les forces tendent à la raccourcir. Les arbalétriers travaillent en compression.', on: has('compression') },
-    { n: 'Flexion', k: 'flexion', d: 'La pièce se <b>courbe</b> sous la charge. Dans un treillis triangulé, la flexion est évitée : c\'est tout l\'intérêt de la triangulation.', on: false },
-    { n: 'Torsion', k: 'torsion', d: 'La pièce est <b>vrillée</b> autour de son axe. Absente dans une fermette plane chargée dans son plan.', on: false }
-  ];
-  let h = `<div class="infobox">Chaque barre est colorée selon sa sollicitation.
-    <b>Clique sur une barre du schéma pour la retirer</b> et observer ce qui arrive à la fermette.</div>`;
-  h += '<div class="solgrid">' + modes.map(m => `<div class="solcard ${m.on ? 'active' : ''}">
-      <div class="st">${m.on ? '● présente dans le modèle' : '○ absente'}</div>
-      <h4>${m.n}</h4><p>${m.d}</p></div>`).join('') + '</div>';
-  h += `<table><thead><tr><th>Barre</th><th>Élément</th><th>Sollicitation</th>
-    <th>Effort (${UN()})</th><th>Allongement (mm)</th></tr></thead><tbody>`;
-  MET.bars.forEach(b => {
-    h += `<tr data-m="${b.i}" class="${SEL === b.i ? 'hi' : ''}"><td>${b.i + 1}</td><td>${b.m.type}</td>
-      <td>${tagSol(b.sol)}</td>
-      <td class="num" style="color:${colOf(b.N)};font-weight:600">${fF(b.N)}</td>
-      <td class="num">${fmt(b.dL, 3)}</td></tr>`;
-  });
-  $('pSol').innerHTML = h + '</tbody></table>';
-  bindRows('pSol');
-}
-
-function panDeformation() {
-  if (!MET) { $('pDef').innerHTML = mecaMsg(`Sans stabilité, la notion de flèche n'a plus de sens : le déplacement serait infini.`); return; }
-  const okDef = MET.fleche <= CRIT.val, mes = num('mes', 0);
-  let h = `<div class="infobox ${okDef ? 'good' : 'bad'}">
-    <b>Flèche maximale simulée : ${fmt(MET.fleche, 3)} mm</b> au nœud ${MET.nodeF}
-    (déplacement vertical le plus grand).<br>
-    Déformation maximale autorisée : ${fmt(CRIT.val, 2)} mm (${CRIT.txt}) →
-    <b>${okDef ? 'critère respecté' : 'critère NON respecté'}</b>.
-    ${okDef ? '' : ' Augmente la section des barres ou choisis un matériau plus rigide (E plus grand).'}
-  </div>`;
-  if (mes > 0 && MET.fleche > 1e-9) {
-    const ec = (mes - MET.fleche) / MET.fleche * 100;
-    h += `<div class="infobox">Comparaison <b>réel / simulé</b> : mesure = ${fmt(mes, 2)} mm,
-      simulation = ${fmt(MET.fleche, 2)} mm → écart de <b>${ec > 0 ? '+' : ''}${fmt(ec, 1)} %</b>.
-      Un écart s'explique par les jeux dans les assemblages, les défauts du matériau réel,
-      la précision de la mesure et les hypothèses du modèle (nœuds parfaitement articulés).</div>`;
-  } else {
-    h += `<div class="infobox">Saisis la <b>déformation mesurée</b> dans le panneau de gauche pour
-      comparer le réel et le simulé.</div>`;
-  }
-  h += `<table><thead><tr><th>Nœud</th><th>Élément</th><th>Déplacement horizontal (mm)</th>
-    <th>Déplacement vertical (mm)</th><th>Déplacement total (mm)</th></tr></thead><tbody>`;
-  M.tr.nodes.forEach((n, i) => {
-    const ux = RES.u[2 * i] * 1000, uy = RES.u[2 * i + 1] * 1000;
-    h += `<tr class="${i === MET.nodeF ? 'hi' : ''}"><td>${i}</td><td>${n.kind}</td>
-      <td class="num">${fmt(ux, 3)}</td>
-      <td class="num" style="font-weight:${i === MET.nodeF ? 700 : 400}">${fmt(uy, 3)}</td>
-      <td class="num">${fmt(Math.hypot(ux, uy), 3)}</td></tr>`;
-  });
-  $('pDef').innerHTML = h + '</tbody></table>';
-}
-
-function panBarres() {
-  if (!MET) { $('pBar').innerHTML = mecaMsg(''); return; }
-  let h = `<table><thead><tr><th>Barre</th><th>Élément</th><th>Sollicitation</th>
-    <th>Effort (${UN()})</th><th>Section (mm)</th><th>σ (MPa)</th><th>σ adm. (MPa)</th>
-    <th>Taux de travail</th></tr></thead><tbody>`;
-  MET.bars.forEach(b => {
-    const p = Math.min(100, b.taux * 100);
-    h += `<tr data-m="${b.i}" class="${SEL === b.i ? 'hi' : ''}"><td>${b.i + 1}</td><td>${b.m.type}</td>
-      <td>${tagSol(b.sol)}</td>
-      <td class="num" style="color:${colOf(b.N)};font-weight:600">${fF(b.N)}</td>
-      <td class="num">${b.sec.b}×${b.sec.h}</td>
-      <td class="num">${fmt(b.sig, 2)}</td><td class="num">${fmt(b.adm, 1)}</td>
-      <td class="num"><span class="barwrap"><span class="bar" style="width:${p}%;
-        background:${b.taux > 1 ? 'var(--ko)' : 'var(--ok)'}"></span></span>${fmt(b.taux * 100, 0)} %</td></tr>`;
-  });
-  $('pBar').innerHTML = h + '</tbody></table>';
-  bindRows('pBar');
-}
-
-function panMateriaux() {
-  if (!MET) { $('pMat').innerHTML = mecaMsg(`Aucun matériau, même l'acier, ne rattrape un défaut de triangulation : c'est la <b>géométrie</b> qui assure la stabilité, pas la matière.`); return; }
-  const L = [];
-  MATERIAUX.forEach(mat => {
-    const M2 = buildModel(readParams(mat), OFF);
-    if (!M2) return;
-    const m2 = metrics(M2, combine(M2, casCur().f));
-    L.push({ mat, m2, ok: m2.fleche <= CRIT.val && m2.pire.taux <= 1 });
-  });
-  /* meilleure valeur de chaque critère, pour rendre le choix multicritère lisible */
-  const best = {
-    fleche: Math.min(...L.map(x => x.m2.fleche)),
-    masse: Math.min(...L.map(x => x.m2.masse)),
-    co2: Math.min(...L.map(x => x.m2.co2))
-  };
-  const cell = (v, d, isBest) => `<td class="num"${isBest ? ' style="color:var(--ok);font-weight:700"' : ''}
-    >${fmt(v, d)}${isBest ? ' ★' : ''}</td>`;
-  let h = `<div class="infobox">Même fermette, même chargement : seule la <b>nature du matériau</b> change.
-    Compare la rigidité (flèche), la résistance (taux de travail), la masse et l'empreinte carbone
-    pour faire un <b>choix multicritère</b>. ★ = meilleure valeur de la colonne.</div>
-    <table><thead><tr><th>Matériau</th><th>Famille</th><th>E (MPa)</th><th>Masse (kg)</th>
-    <th>Flèche (mm)</th><th>Taux max</th><th>CO₂ (kg éq.)</th><th>Tenue mécanique</th>
-    <th>Fin de vie</th></tr></thead><tbody>`;
-  L.forEach(({ mat, m2, ok }) => {
-    h += `<tr class="${mat.id === M.P.mat.id ? 'hi' : ''}"><td>${mat.nom}</td><td>${mat.fam}</td>
-      <td class="num">${fmt(mat.E)}</td>
-      ${cell(m2.masse, 1, m2.masse === best.masse)}
-      ${cell(m2.fleche, 2, m2.fleche === best.fleche)}
-      <td class="num" style="color:${m2.pire.taux > 1 ? 'var(--ko)' : 'var(--ink)'}">${fmt(m2.pire.taux * 100, 0)} %</td>
-      ${cell(m2.co2, 1, m2.co2 === best.co2)}
-      <td>${ok ? '<span class="tag ok">convient</span>' : '<span class="tag ko">ne convient pas</span>'}</td>
-      <td style="text-align:left;white-space:normal;font-size:11.5px;color:var(--ink-2)">${mat.rec}</td></tr>`;
-  });
-  $('pMat').innerHTML = h + '</tbody></table>';
-}
-
-function panLimites() {
-  if (!MET) { $('pLim').innerHTML = mecaMsg(`La charge limite est nulle : la structure ne peut rien porter.`); return; }
-  const kDef = MET.fleche > 1e-12 ? CRIT.val / MET.fleche : Infinity;
-  const kRes = MET.pire.taux > 1e-12 ? 1 / MET.pire.taux : Infinity;
-  const kLim = Math.min(kDef, kRes);
-  const gov = kDef < kRes ? 'la déformation' : 'la résistance du matériau';
-  let tot = 0;
-  for (let i = 1; i < RES.F.length; i += 2) tot += RES.F[i];
-  tot = -tot;
-  const tri = MET.bars.slice().sort((a, b) => b.taux - a.taux).slice(0, 3);
-  let h = `<div class="infobox">La structure est <b>élastique linéaire</b> : si on multiplie toutes les
-    charges par un facteur k, les efforts et la déformation sont multipliés par k.
-    On peut donc calculer directement jusqu'où on peut aller.</div>
-    <table><thead><tr><th>Critère</th><th>Valeur actuelle</th><th>Limite</th>
-    <th>Facteur k disponible</th></tr></thead><tbody>
-    <tr><td>Déformation</td><td class="num">${fmt(MET.fleche, 3)} mm</td>
-      <td class="num">${fmt(CRIT.val, 2)} mm</td><td class="num">${isFinite(kDef) ? '× ' + fmt(kDef, 2) : '∞'}</td></tr>
-    <tr><td>Résistance (barre ${MET.pire.i + 1}, ${MET.pire.m.type})</td>
-      <td class="num">${fmt(Math.abs(MET.pire.sig), 2)} MPa</td>
-      <td class="num">${fmt(MET.pire.adm, 1)} MPa</td>
-      <td class="num">${isFinite(kRes) ? '× ' + fmt(kRes, 2) : '∞'}</td></tr>
-    </tbody></table>
-    <div class="infobox ${kLim >= 1 ? 'good' : 'bad'}">
-      Facteur limite : <b>k = ${isFinite(kLim) ? fmt(kLim, 2) : '∞'}</b> — c'est ${gov} qui limite d'abord.<br>
-      Charge totale actuelle : <b>${fF(tot)} ${UN()}</b> →
-      charge maximale supportable : <b>${isFinite(kLim) ? fF(tot * kLim) : '∞'} ${UN()}</b>.
-      ${kLim >= 1 ? '' : 'La structure est déjà au-delà de ses limites dans cette configuration.'}
-    </div>
-    <table><thead><tr><th>Barres les plus sollicitées</th><th>Sollicitation</th>
-    <th>σ (MPa)</th><th>Taux</th><th>Marge avant rupture</th></tr></thead><tbody>`;
-  tri.forEach(b => {
-    h += `<tr data-m="${b.i}"><td>Barre ${b.i + 1} — ${b.m.type}</td><td>${tagSol(b.sol)}</td>
-      <td class="num">${fmt(b.sig, 2)}</td><td class="num">${fmt(b.taux * 100, 0)} %</td>
-      <td class="num">${b.taux > 1e-9 ? '× ' + fmt(1 / b.taux, 2) : '∞'}</td></tr>`;
-  });
-  $('pLim').innerHTML = h + '</tbody></table>';
-  bindRows('pLim');
-}
-
-function panReactions() {
-  if (!MET) { $('pReac').innerHTML = mecaMsg(''); return; }
-  let h = `<table><thead><tr><th>Cas de charge</th><th>Rx gauche (${UN()})</th>
-    <th>Ry gauche (${UN()})</th><th>Ry droite (${UN()})</th><th>Σ V</th><th>Σ charges</th>
-    </tr></thead><tbody>`;
-  casList().forEach(c => {
-    const r = combine(M, c.f);
-    const rx = r.R[2 * M.tr.supL] || 0, ryL = r.R[2 * M.tr.supL + 1] || 0, ryR = r.R[2 * M.tr.supR + 1] || 0;
-    let sv = 0; for (let i = 1; i < r.F.length; i += 2) sv += r.F[i];
-    h += `<tr class="${c.id === $('combo').value ? 'hi' : ''}"><td>${c.nom}</td>
-      <td class="num">${fF(rx)}</td><td class="num">${fF(ryL)}</td><td class="num">${fF(ryR)}</td>
-      <td class="num">${fF(ryL + ryR)}</td><td class="num">${fF(-sv)}</td></tr>`;
-  });
-  $('pReac').innerHTML = h + `</tbody></table>
-    <div class="infobox">Ry &lt; 0 : soulèvement de l'appui — un ancrage est nécessaire.
-    Σ V doit être égal à Σ charges (contrôle d'équilibre du calcul).</div>`;
-}
-
-/* Panneau affiché à la place des résultats quand la structure est un mécanisme */
-function mecaMsg(extra) {
-  const noms = [...OFF].sort((a, b) => a - b).map(i => i + 1).join(', ');
-  const tr = M.tr;
-  return `<div class="infobox bad"><b>La structure est devenue un mécanisme : aucun calcul
-    d'effort ni de déformation n'est possible.</b><br>
-    En retirant la ou les barres ${noms}, il reste ${tr.actifs} barres pour ${tr.nodes.length} nœuds.
-    Le décompte de stabilité donne <code>b + r = ${tr.actifs} + 3 = ${tr.actifs + 3}</code>
-    alors qu'il faut <code>2 × n = ${2 * tr.nodes.length}</code> :
-    il manque ${2 * tr.nodes.length - tr.actifs - 3} liaison(s).
-    La structure possède ${M.mobilite} degré(s) de liberté : elle bouge sans que les barres
-    ne s'allongent, donc elle s'écroule. L'animation rouge montre comment.</div>
-    <div class="infobox">Remets la barre en cliquant à nouveau dessus, ou utilise
-    <b>Tout rétablir</b>. ${extra || ''}</div>`;
-}
-
-function bindRows(id) {
-  $(id).querySelectorAll('tr[data-m]').forEach(tr =>
-    tr.addEventListener('click', () => { SEL = +tr.dataset.m; refresh(); }));
-}
-</script>
-<script>
-"use strict";
-/* ======================== 15. NOTE DE CALCUL ========================= */
-function panNote() {
-  if (!MET) { $('pNote').innerHTML = mecaMsg(''); return; }
-  const P = M.P, tr = M.tr, mat = P.mat;
-  let tot = 0; for (let i = 1; i < RES.F.length; i += 2) tot += RES.F[i];
-  $('pNote').innerHTML = `<div class="pad">
-  <h3>Ce que fait la simulation</h3>
-  La fermette est modélisée par un <b>treillis plan à nœuds articulés</b> : chaque barre ne peut être que
-  <b>tirée</b> (traction) ou <b>écrasée</b> (compression), jamais fléchie. C'est le principe de la
-  <b>triangulation</b> : les triangles ne se déforment pas sans changer la longueur de leurs côtés.
-  <ul>
-    <li>Chaque barre se comporte comme un ressort de raideur <code>k = E·A / L</code>.</li>
-    <li>On écrit l'équilibre de chaque nœud, ce qui donne un système d'équations <code>K·u = F</code>
-        résolu par élimination de Gauss.</li>
-    <li>On en déduit le déplacement de chaque nœud, puis l'effort dans chaque barre :
-        <code>N = (E·A / L) × allongement</code>.</li>
-  </ul>
-
-  <h3>Modèle étudié</h3>
-  <ul>
-    <li>${P.maq ? 'Maquette d\'essai chargée par une force ponctuelle.'
-      : 'Charpente réelle : fermette industrielle type W.'}</li>
-    <li>Portée ${fmt(P.L, 2)} m · pente ${fmt(P.alphaDeg, 1)}° · hauteur au faîtage ${fmt(tr.h, 3)} m
-        · ${tr.nodes.length} nœuds · ${tr.members.length} barres.</li>
-    <li>Appui gauche articulé, appui droit sur rouleau → structure
-        <b>${tr.isostatique ? 'isostatique' : 'hyperstatique'}</b>.</li>
-    <li>Matériau : <b>${mat.nom}</b> — E = ${fmt(mat.E)} MPa, ρ = ${mat.rho} kg/m³,
-        σ<sub>adm</sub> = ${mat.st} MPa (traction) / ${mat.sc} MPa (compression).</li>
-    <li>Masse de la structure : <b>${fmt(MET.masse, 2)} kg</b> ·
-        empreinte carbone <b>${fmt(MET.co2, 1)} kg CO₂e</b>.</li>
-  </ul>
-
-  <h3>Chargement — ${casCur().nom}</h3>
-  <ul>
-    ${P.maq ? `<li>Charge d'essai : ${fF(P.ptFy)} ${UN()} au nœud ${P.ptNode}.</li>`
-      : `<li>Couverture ${fmt(P.gCouv)} daN/m² de rampant · plafond ${fmt(P.gPlaf)} daN/m² ·
-           neige ${fmt(P.s)} daN/m² · entraxe ${fmt(P.entraxe, 2)} m.</li>`}
-    <li>Poids propre de la structure ${P.pp ? 'pris en compte' : 'négligé'}.</li>
-    <li>Charge verticale totale appliquée : <b>${fF(-tot)} ${UN()}</b>.</li>
-  </ul>
-
-  <h3>Résultats</h3>
-  <ul>
-    <li>Flèche maximale : <b>${fmt(MET.fleche, 3)} mm</b> au nœud ${MET.nodeF} ·
-        autorisée ${fmt(CRIT.val, 2)} mm (${CRIT.txt}) →
-        <b>${MET.fleche <= CRIT.val ? 'conforme' : 'non conforme'}</b>.</li>
-    <li>Barre la plus sollicitée : n° ${MET.pire.i + 1} (${MET.pire.m.type}), en ${MET.pire.sol},
-        σ = ${fmt(Math.abs(MET.pire.sig), 2)} MPa soit
-        <b>${fmt(MET.pire.taux * 100, 0)} %</b> de la contrainte admissible.</li>
-  </ul>
-
-  <h3>Ce que le modèle ne calcule pas</h3>
-  <ul>
-    <li>La <b>flexion locale</b> d'une barre entre deux nœuds (les charges sont ramenées aux nœuds).</li>
-    <li>Le comportement des <b>assemblages</b> (connecteurs, clous, colle), qui est souvent le point faible réel.</li>
-    <li>Le <b>flambement</b> des barres comprimées élancées.</li>
-    <li>C'est l'une des raisons de l'écart entre le réel mesuré et le simulé.</li>
-  </ul>
-  </div>`;
-}
-
-/* ===================== 16. OBJECTIFS DU PROGRAMME ==================== */
-function panObjectifs() {
-  const blocs = [
-    { t: 'Classe de 5ᵉ', o: ['Identifier la nature des sollicitations mécaniques des matériaux',
-      'Utiliser une simulation fournie pour valider la tenue mécanique d\'un matériau soumis à une sollicitation simple',
-      'Mettre en œuvre un protocole de test fourni'],
-      d: ['identifier la sollicitation subie par la pièce, le produit ou l\'ouvrage → onglet <b>Sollicitations</b> ;',
-        'déterminer, en simulation, l\'ampleur de la déformation → onglet <b>Déformation</b> ;',
-        'choisir un matériau ou une dimension qui limitera la déformation → onglet <b>Comparer les matériaux</b> ;',
-        'conclure quant à l\'écart entre le réel et le simulé → champ <b>Mesure expérimentale</b>.'] },
-    { t: 'Classe de 4ᵉ', o: ['Paramétrer une simulation fournie pour valider la tenue mécanique d\'un matériau soumis à une sollicitation simple',
-      'Choisir et mettre en œuvre un protocole de test'],
-      d: ['paramétrer la simulation en renseignant <b>la nature du matériau</b> et <b>les dimensions</b> → panneaux <i>Matériau</i> et <i>Dimensions des barres</i> ;',
-        'conclure quant au respect de la déformation maximale autorisée → panneau <i>Critère de déformation</i> ;',
-        'comparer les matériaux pour arrêter un choix (résistance, masse, empreinte carbone, fin de vie).'] },
-    { t: 'Classe de 3ᵉ', o: ['Paramétrer une simulation fournie pour valider la tenue mécanique d\'un matériau',
-      'Proposer et mettre en œuvre un protocole de test'],
-      d: ['explorer, en simulation, <b>aux frontières des exigences</b>, les limites de charge et de déformation → onglet <b>Limites</b> ;',
-        'calculer la déformation subie par l\'ouvrage ;',
-        'proposer un protocole expérimental et conclure sur l\'écart réel / simulé.'] }
-  ];
-  $('pObj').innerHTML = `<div class="pad">
-    <h3>Origine</h3>
-    Cette application couvre les objectifs d'apprentissage du thème
-    <b>« La validation du comportement mécanique d'un matériau »</b> du
-    <i>projet d'aménagement des programmes de technologie du cycle 4</i> (juin 2025),
-    complété par le thème <b>« Le choix des matériaux »</b>.
-    <br><b>Connaissances visées :</b> modes de sollicitation des matériaux —
-    <b>flexion, torsion, traction, compression</b>.
-    ${blocs.map((b, i) => `<h3>${b.t}${NIVEAU === i ? ' — niveau sélectionné' : ''}</h3>
-      <b>Objectifs d'apprentissage</b><ul>${b.o.map(x => `<li>${x}</li>`).join('')}</ul>
-      <b>Dans l'application, l'élève sait :</b><ul>${b.d.map(x => `<li>${x}</li>`).join('')}</ul>`).join('')}
-    <h3>Protocole expérimental suggéré</h3>
-    <ul>
-      <li>Réaliser une maquette de fermette (balsa, carton fort, baguettes bois, pièces imprimées).</li>
-      <li>La poser sur deux appuis distants de la portée saisie dans la simulation.</li>
-      <li>Suspendre une masse connue au faîtage, mesurer l'abaissement avec un comparateur ou un réglet.</li>
-      <li>Saisir la valeur mesurée, comparer à la simulation, expliquer l'écart.</li>
-    </ul>
-  </div>`;
-}
-
-/* ========================= 17. RAFRAÎCHISSEMENT ====================== */
-function refresh() {
-  /* la liste des nœuds dépend de la géométrie : on la met à jour d'abord */
-  syncNodeSelect(buildTruss(num('L', 8), num('alpha', 30),
-    Math.max(1, Math.min(5, Math.round(num('k', 2))))));
-
-  const P = readParams();
-  /* si la géométrie change, le nombre de barres change : on repart d'une fermette complète */
-  const nb = buildTruss(P.L, P.alphaDeg, P.k).members.length;
-  if (nb !== NB_BARRES) { NB_BARRES = nb; OFF.clear(); }
-
-  M = buildModel(P, OFF);
-  CRIT = critere(P);
-  if (M.singular) {
-    RES = { N: M.tr.members.map(() => 0), R: {}, F: loadVector(M, casCur().f),
-      u: new Float64Array(2 * M.tr.nodes.length) };
-    MET = null;
-  } else {
-    RES = combine(M, casCur().f);
-    MET = metrics(M, RES);
-  }
-  if (SEL >= M.tr.members.length) SEL = -1;
-  $('offInfo').textContent = OFF.size
-    ? `${OFF.size} barre${OFF.size > 1 ? 's' : ''} retirée${OFF.size > 1 ? 's' : ''}`
-    : 'Clique sur une barre pour la retirer';
-  $('btnRestore').style.display = OFF.size ? '' : 'none';
-
-  draw(); verdicts();
-  panSollicitations(); panDeformation(); panBarres(); panNote(); panObjectifs();
-  if (NIVEAU >= 1) panMateriaux();
-  if (NIVEAU >= 2) panLimites();
-  if (NIVEAU >= 3) panReactions();
-
-  /* encarts latéraux */
-  const maq = P.maq;
-  $('situHint').innerHTML = maq
-    ? 'Les charges de toiture sont désactivées : seule la charge d\'essai est appliquée. Mode adapté à un essai sur maquette en classe.'
-    : 'La fermette reprend la couverture, le plafond et la neige sur sa largeur d\'entraxe.';
-  $('chReel').style.display = maq ? 'none' : '';
-  $('ptU').textContent = $('ptUnit').value === 'kg' ? 'kg' : 'N';
-  $('geoOut').innerHTML = `hauteur faîtage <b>${fmt(M.tr.h, 3)} m</b> ·
-    ${M.tr.nodes.length} nœuds · ${M.tr.members.length} barres`;
-  $('matOut').innerHTML = `E = <b>${fmt(P.mat.E)} MPa</b> · ρ = ${P.mat.rho} kg/m³<br>
-    σ adm. ${P.mat.st} MPa (traction) / ${P.mat.sc} MPa (compr.)<br>
-    empreinte ${fmt(P.mat.co2, 2)} kg CO₂e/kg`;
-  $('secOut').innerHTML = MET
-    ? `masse de la structure <b>${fmt(MET.masse, 2)} kg</b> · <b>${fmt(MET.co2, 1)} kg CO₂e</b>`
-    : `${M.tr.actifs} barres en place sur ${M.tr.members.length}`;
-  let tot = 0; for (let i = 1; i < RES.F.length; i += 2) tot += RES.F[i];
-  $('chOut').innerHTML = `charge verticale totale <b>${fF(-tot)} ${UN()}</b>`;
-  $('critOut').innerHTML = `déformation autorisée <b>${fmt(CRIT.val, 2)} mm</b> (${CRIT.txt})<br>
-    ${MET ? `simulée <b style="color:${MET.fleche <= CRIT.val ? 'var(--ok)' : 'var(--ko)'}"
-      >${fmt(MET.fleche, 3)} mm</b>` : `<b style="color:var(--ko)">structure instable</b>`}`;
-  const mes = num('mes', 0);
-  $('mesOut').innerHTML = MET && mes > 0 && MET.fleche > 1e-9
-    ? `écart réel / simulé <b>${fmt((mes - MET.fleche) / MET.fleche * 100, 1)} %</b>`
-    : 'saisis ta mesure pour comparer';
-  if (NIVEAU >= 3) $('wOut').innerHTML = `q<sub>p</sub>(z) = <b>${fmt(P.ventCalc.qp, 1)} daN/m²</b>`;
-}
-
-/* ============================ 18. EXPORT ============================= */
-function csv() {
-  const sep = ';', P = M.P;
-  let o = `Fermette - simulation du comportement mecanique\n`;
-  o += `Niveau${sep}${['5e', '4e', '3e', 'Expert'][NIVEAU]}\n`;
-  if (!MET) o += `STRUCTURE INSTABLE - mecanisme a ${M.mobilite} degre(s) de liberte${sep}barres retirees${sep}${[...OFF].sort((a, b) => a - b).map(i => i + 1).join(' ')}\n`;
-  o += `Cas de charge${sep}${casCur().nom}\n`;
-  o += `Materiau${sep}${P.mat.nom}${sep}E (MPa)${sep}${P.mat.E}\n`;
-  o += `Portee (m)${sep}${P.L}${sep}Pente (deg)${sep}${P.alphaDeg}\n`;
-  o += `Fleche simulee (mm)${sep}${MET ? MET.fleche.toFixed(3) : 'non calculable'}\n`;
-  o += `Deformation autorisee (mm)${sep}${CRIT.val.toFixed(2)}${sep}${CRIT.txt}\n`;
-  o += `Verdict${sep}${!MET ? 'structure instable' : (MET.fleche <= CRIT.val ? 'conforme' : 'non conforme')}\n`;
-  o += `Mesure experimentale (mm)${sep}${num('mes', 0)}\n`;
-  if (MET) o += `Masse (kg)${sep}${MET.masse.toFixed(2)}${sep}CO2 (kg eq)${sep}${MET.co2.toFixed(2)}\n\n`;
-  o += ['Barre', 'Element', 'Sollicitation', 'Effort (' + UN() + ')', 'Longueur (m)',
-    'Section (mm)', 'Sigma (MPa)', 'Sigma adm (MPa)', 'Taux (%)', 'Allongement (mm)'].join(sep) + '\n';
-  (MET ? MET.bars : []).forEach(b => {
-    o += [b.i + 1, b.m.type, b.sol, (b.N * UF()).toFixed(1), b.m.L.toFixed(3),
-      b.sec.b + 'x' + b.sec.h, b.sig.toFixed(2), b.adm, (b.taux * 100).toFixed(0),
-      b.dL.toFixed(3)].join(sep) + '\n';
-  });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['﻿' + o], { type: 'text/csv;charset=utf-8' }));
-  a.download = 'fermette_simulation.csv';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
-/* ============================ 19. INIT =============================== */
-document.addEventListener('DOMContentLoaded', () => {
-  $('mat').innerHTML = MATERIAUX.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
-  $('mat').value = 'c24';
-
-  document.querySelectorAll('#levels .lvl').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('#levels .lvl').forEach(x => x.classList.remove('on'));
-    b.classList.add('on');
-    NIVEAU = +b.dataset.r;
-    $('unit').value = NIVEAU >= 3 ? 'daN' : 'N';
-    applyLevel();
-    refresh();
-  }));
-
-  document.querySelectorAll('aside input, aside select, .toolbar input, .toolbar select')
-    .forEach(el => el.addEventListener('input', refresh));
-  $('presetCouv').addEventListener('change', () => { $('gCouv').value = $('presetCouv').value; refresh(); });
-  $('situ').addEventListener('change', () => {
-    if ($('situ').value === 'maq' && num('ptF', 0) === 0) $('ptF').value = 20;
-    applyLevel();
-    refresh();
-  });
-  $('critType').addEventListener('change', () => {
-    $('critVal').disabled = NIVEAU < 1 || $('critType').value !== 'lib';
-    refresh();
-  });
-  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showTab(t)));
-  $('btnCsv').addEventListener('click', csv);
-  $('btnReset').addEventListener('click', () => location.reload());
-  $('btnRestore').addEventListener('click', () => { OFF.clear(); refresh(); });
-  window.addEventListener('resize', () => { if (M) refresh(); });
-
-  applyLevel();
-  refresh();
-});
-</script>
+
+    <script>
+        const materiaux = {
+            bois: { nom: "Bois (Épicéa)", moduleYoung: 11000, limiteElastique: 24, carbone: "Très faible", recyclabilite: "Haute", defaultColor: "#d35400" },
+            balsa: { nom: "Bois de maquette (Balsa)", moduleYoung: 3000, limiteElastique: 12, carbone: "Très faible", recyclabilite: "Haute", defaultColor: "#f5deb3" },
+            acier: { nom: "Acier S235", moduleYoung: 210000, limiteElastique: 235, carbone: "Élevée", recyclabilite: "Très haute", defaultColor: "#7f8c8d" },
+            aluminium: { nom: "Aluminium", moduleYoung: 69000, limiteElastique: 160, carbone: "Très élevée", recyclabilite: "Très haute", defaultColor: "#bdc3c7" },
+            abs: { nom: "Plastique rigide (ABS)", moduleYoung: 2300, limiteElastique: 40, carbone: "Élevée", recyclabilite: "Moyenne", defaultColor: "#f39c12" },
+            pvc_rigide: { nom: "PVC Rigide", moduleYoung: 3000, limiteElastique: 45, carbone: "Très élevée", recyclabilite: "Faible", defaultColor: "#95a5a6" },
+            pvc_expanse: { nom: "PVC Expansé", moduleYoung: 800, limiteElastique: 15, carbone: "Très élevée", recyclabilite: "Faible", defaultColor: "#ecf0f1" }
+        };
+
+        let currentLevel = 5;
+        const canvas = document.getElementById('fermetteCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Variables de cinématique
+        let currentDef = 0;
+        let targetDef = 0;
+        let currentStressRate = 0;
+        let targetStressRate = 0;
+
+        // Variables de la Caméra Auto-Adaptative
+        let camX = 400;
+        let camY = 200;
+        let camScale = 1;
+
+        function init() {
+            setLevel(5);
+            animate();
+        }
+
+        function updateForceMax() {
+            let maxVal = parseFloat(document.getElementById('force-max').value);
+            if (isNaN(maxVal) || maxVal <= 0) maxVal = 1000;
+            
+            ['C', 'E', 'F', 'D', 'AB'].forEach(id => {
+                const slider = document.getElementById(`val-force-${id}`);
+                slider.max = maxVal;
+                
+                let newStep = maxVal / 100;
+                if (newStep < 0.1) newStep = 0.1;
+                slider.step = newStep;
+
+                if (parseFloat(slider.value) > maxVal) {
+                    slider.value = maxVal;
+                    document.getElementById(`text-force-${id}`).innerText = parseFloat(maxVal).toFixed(0);
+                }
+            });
+            updateSimulation();
+        }
+
+        function setLevel(level) {
+            currentLevel = level;
+            
+            const btns = document.querySelectorAll('.level-btn');
+            btns.forEach(btn => btn.classList.remove('active'));
+            if (level === 5) btns[0].classList.add('active');
+            if (level === 4) btns[1].classList.add('active');
+            if (level === 3) btns[2].classList.add('active');
+
+            document.querySelectorAll('.lvl-4, .lvl-3').forEach(el => el.classList.add('hidden'));
+            document.getElementById('res-lvl3').classList.add('hidden');
+
+            if (level <= 4) document.querySelectorAll('.lvl-4').forEach(el => el.classList.remove('hidden'));
+            if (level === 3) {
+                document.querySelectorAll('.lvl-3').forEach(el => el.classList.remove('hidden'));
+                document.getElementById('res-lvl3').classList.remove('hidden');
+            }
+
+            if(level > 3) {
+                ['C', 'E', 'F', 'D', 'AB'].forEach(id => {
+                    document.getElementById(`val-force-${id}`).value = 150; 
+                });
+            }
+
+            updateSimulation();
+        }
+
+        function updateSimulation(sourceElement) {
+            if (sourceElement && sourceElement.id.startsWith('val-force-')) {
+                const id = sourceElement.id.replace('val-force-', '');
+                document.getElementById(`text-force-${id}`).innerText = parseFloat(sourceElement.value).toFixed(0);
+            }
+
+            const inputEntrait = parseFloat(document.getElementById('dim-entrait').value) || 1;
+            const inputArba = parseFloat(document.getElementById('dim-arba').value) || 1;
+            
+            let valPoincon = 0;
+            let valContrefiche = 0;
+            let isValidGeo = false;
+
+            if (inputArba > inputEntrait / 2) {
+                isValidGeo = true;
+                valPoincon = Math.sqrt(Math.pow(inputArba, 2) - Math.pow(inputEntrait / 2, 2));
+                valContrefiche = inputArba / 2; 
+                
+                document.getElementById('val-poincon').innerText = valPoincon.toFixed(1);
+                document.getElementById('val-contrefiche').innerText = valContrefiche.toFixed(1);
+                document.getElementById('dim-error').classList.add('hidden');
+            } else {
+                document.getElementById('dim-error').classList.remove('hidden');
+                document.getElementById('val-poincon').innerText = "-";
+                document.getElementById('val-contrefiche').innerText = "-";
+            }
+
+            const hasPoincon = document.getElementById('struct-poincon').checked;
+            const hasContreficheG = document.getElementById('struct-contrefiche-g').checked;
+            const hasContreficheD = document.getElementById('struct-contrefiche-d').checked;
+
+            ['C', 'E', 'F', 'D', 'AB'].forEach(id => {
+                const cb = document.getElementById(`force-${id}`).checked;
+                const sliderDiv = document.getElementById(`slider-${id}`);
+                if (cb && currentLevel === 3) {
+                    sliderDiv.classList.remove('hidden');
+                    document.getElementById(`text-force-${id}`).innerText = parseFloat(document.getElementById(`val-force-${id}`).value).toFixed(0);
+                } else {
+                    sliderDiv.classList.add('hidden');
+                }
+            });
+
+            const fC = document.getElementById('force-C').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-C').value) : 150) : 0;
+            const fE = document.getElementById('force-E').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-E').value) : 150) : 0;
+            const fF = document.getElementById('force-F').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-F').value) : 150) : 0;
+            const fD = document.getElementById('force-D').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-D').value) : 150) : 0;
+            const fAB = document.getElementById('force-AB').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-AB').value) : 150) : 0;
+            
+            const forceTotale = fC + fE + fF + fD + fAB;
+
+            let facteurRigidite = 1.0;
+            let missingContrefiches = 0;
+            if (!hasContreficheG) missingContrefiches++;
+            if (!hasContreficheD) missingContrefiches++;
+            
+            if (missingContrefiches === 1) facteurRigidite *= 1.5;
+            if (missingContrefiches === 2) facteurRigidite *= 2.0; 
+            if (!hasPoincon) facteurRigidite *= 1.5;
+
+            let matKey = document.getElementById('materiau').value;
+            const mat = materiaux[matKey];
+            
+            document.getElementById('material-info').innerHTML = `
+                <strong>Propriétés physiques :</strong> Module de Young = ${mat.moduleYoung} MPa | Limite élastique = ${mat.limiteElastique} MPa<br>
+                <strong>Données environnementales :</strong> Empreinte carbone = ${mat.carbone} | Recyclabilité = ${mat.recyclabilite}
+            `;
+
+            let section = 100;
+            if (currentLevel <= 4) {
+                const forme = document.getElementById('section-forme').value;
+                const divCarree = document.getElementById('inputs-carree');
+                const divRect = document.getElementById('inputs-rect');
+
+                if (forme === 'carree') {
+                    divCarree.style.display = 'flex';
+                    divRect.style.display = 'none';
+                    const a = parseFloat(document.getElementById('dim-a').value) || 0;
+                    section = a * a;
+                } else {
+                    divCarree.style.display = 'none';
+                    divRect.style.display = 'flex';
+                    const b = parseFloat(document.getElementById('dim-b').value) || 0;
+                    const h = parseFloat(document.getElementById('dim-h').value) || 0;
+                    section = b * h;
+                }
+                document.getElementById('section-val').innerText = section.toFixed(1);
+            }
+
+            const longueurUtilisee = isValidGeo ? inputEntrait : 1; 
+            
+            let deformation = 0;
+            let contrainte = 0;
+            let tauxTravail = 0;
+
+            if (isValidGeo) {
+                if (section === 0) {
+                    if (forceTotale > 0) {
+                        deformation = Infinity;
+                        tauxTravail = Infinity;
+                    }
+                } else {
+                    deformation = ((forceTotale * longueurUtilisee) / (mat.moduleYoung * section)) * facteurRigidite;
+                    contrainte = (forceTotale / section) * facteurRigidite;
+                    tauxTravail = (contrainte / mat.limiteElastique) * 100;
+                }
+            }
+
+            document.getElementById('res-deformation').innerText = (section === 0 && forceTotale > 0) ? "∞" : deformation.toFixed(2);
+            
+            if (currentLevel === 3) {
+                document.getElementById('res-taux').innerText = (section === 0 && forceTotale > 0) ? "∞" : tauxTravail.toFixed(1);
+                
+                const alerte = document.getElementById('alerte-rupture');
+                if (tauxTravail > 100 || (section === 0 && forceTotale > 0)) {
+                    alerte.classList.remove('hidden');
+                    if (section === 0) {
+                        alerte.innerText = "⚠️ RUPTURE : Section nulle ! La structure n'existe pas.";
+                    } else {
+                        alerte.innerText = "⚠️ RUPTURE : Limite d'élasticité dépassée ou structure trop faible !";
+                    }
+                } else {
+                    alerte.classList.add('hidden');
+                }
+
+                const mesureExp = parseFloat(document.getElementById('mesure-exp').value);
+                const ecartEl = document.getElementById('res-ecart');
+                if (!isNaN(mesureExp) && section !== 0 && isValidGeo) {
+                    ecartEl.innerText = `${Math.abs(mesureExp - deformation).toFixed(2)} mm de différence`;
+                } else {
+                    ecartEl.innerText = "En attente de saisie valide...";
+                }
+                targetStressRate = tauxTravail;
+            } else {
+                targetStressRate = 0; 
+            }
+
+            if (!isValidGeo || forceTotale === 0) {
+                targetDef = 0;
+            } else if (section === 0 && forceTotale > 0) {
+                targetDef = 220; 
+            } else {
+                const forceMaxRef = parseFloat(document.getElementById('force-max').value) || 1000;
+                let defBase = ((forceMaxRef * 0.15 * longueurUtilisee) / (mat.moduleYoung * (section === 0 ? 1 : section))) * facteurRigidite;
+                const ratioForce = forceTotale / (forceMaxRef * 5); 
+                targetDef = Math.min(defBase * 400 * ratioForce, 150); 
+                if (tauxTravail > 100 && currentLevel === 3) targetDef = 220; 
+            }
+        }
+
+        function animate() {
+            currentDef += (targetDef - currentDef) * 0.08;
+            currentStressRate += (targetStressRate - currentStressRate) * 0.08;
+            
+            drawScene();
+            requestAnimationFrame(animate);
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = '#ecf0f1';
+            ctx.lineWidth = 1;
+            for(let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            }
+            for(let i = 0; i < canvas.height; i += 20) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+        }
+
+        function getStressGradient(x1, y1, x2, y2, stressRate, isBroken) {
+            const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+            let matKey = document.getElementById('materiau').value;
+            let baseColor = materiaux[matKey].defaultColor;
+
+            if (currentLevel === 3) {
+                if (isBroken) {
+                    grad.addColorStop(0, "#c0392b");
+                    grad.addColorStop(0.5, "#e74c3c");
+                    grad.addColorStop(1, "#c0392b");
+                } else if (stressRate > 80) {
+                    grad.addColorStop(0, "#e67e22");
+                    grad.addColorStop(0.5, "#f1c40f");
+                    grad.addColorStop(1, "#e67e22");
+                } else if (stressRate > 40) {
+                    grad.addColorStop(0, "#27ae60");
+                    grad.addColorStop(0.5, "#2ecc71");
+                    grad.addColorStop(1, "#27ae60");
+                } else {
+                    grad.addColorStop(0, "#2980b9");
+                    grad.addColorStop(0.5, "#3498db");
+                    grad.addColorStop(1, "#2980b9");
+                }
+            } else {
+                grad.addColorStop(0, baseColor);
+                grad.addColorStop(1, adjustColor(baseColor, 40));
+            }
+            return grad;
+        }
+
+        function adjustColor(color, amount) {
+            return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+        }
+
+        function drawSupport(x, y, type) {
+            ctx.fillStyle = '#7f8c8d';
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2;
+            
+            if (type === 'fixe') {
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - 15, y + 25);
+                ctx.lineTo(x + 15, y + 25);
+                ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                ctx.fillRect(x - 20, y + 25, 40, 10);
+            } else if (type === 'mobile') {
+                ctx.beginPath();
+                ctx.arc(x - 8, y + 10, 8, 0, Math.PI * 2);
+                ctx.arc(x + 8, y + 10, 8, 0, Math.PI * 2);
+                ctx.fill(); ctx.stroke();
+                ctx.fillRect(x - 20, y + 20, 40, 10);
+            }
+        }
+
+        function drawLabel(text, x, y, align="center") {
+            ctx.save();
+            ctx.font = "bold 13px 'Segoe UI', Arial, sans-serif";
+            ctx.textAlign = align;
+            ctx.textBaseline = "middle";
+            
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.strokeText(text, x, y);
+            
+            ctx.fillStyle = "#2c3e50";
+            ctx.fillText(text, x, y);
+            ctx.restore();
+        }
+
+        // Nouvelle fonction pour dessiner le symbole de rupture
+        function drawFracture(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.beginPath();
+            // Dessin d'une "étoile de rupture" stylisée
+            const pts = [
+                0, -18, 5, -5, 18, -8, 8, 5, 15, 18, 0, 10, -15, 18, -8, 5, -18, -8, -5, -5
+            ];
+            ctx.moveTo(pts[0], pts[1]);
+            for(let i=2; i<pts.length; i+=2) {
+                ctx.lineTo(pts[i], pts[i+1]);
+            }
+            ctx.closePath();
+            
+            ctx.fillStyle = "#f39c12"; // Orange d'avertissement
+            ctx.fill();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = "#c0392b"; // Rouge foncé
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+
+            const inputEntrait = parseFloat(document.getElementById('dim-entrait').value) || 1;
+            const inputArba = parseFloat(document.getElementById('dim-arba').value) || 1;
+            
+            if (inputArba <= inputEntrait / 2) return;
+
+            const valPoincon = Math.sqrt(Math.pow(inputArba, 2) - Math.pow(inputEntrait / 2, 2));
+            const geoRatio = valPoincon / inputEntrait;
+            
+            let drawWidth = 550;
+            let drawHeight = drawWidth * geoRatio;
+            
+            const originX = 400 - drawWidth / 2; 
+            const originY = 320;
+            const width = drawWidth;
+            const height = drawHeight;
+
+            const forceMaxRef = parseFloat(document.getElementById('force-max').value) || 1000;
+
+            const hasPoincon = document.getElementById('struct-poincon').checked;
+            const hasContreficheG = document.getElementById('struct-contrefiche-g').checked;
+            const hasContreficheD = document.getElementById('struct-contrefiche-d').checked;
+            
+            const fC = document.getElementById('force-C').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-C').value) : 150) : 0;
+            const fE = document.getElementById('force-E').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-E').value) : 150) : 0;
+            const fF = document.getElementById('force-F').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-F').value) : 150) : 0;
+            const fD = document.getElementById('force-D').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-D').value) : 150) : 0;
+            const fAB = document.getElementById('force-AB').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-AB').value) : 150) : 0;
+
+            let facteurVertical = (fC/forceMaxRef) + (fE/forceMaxRef)*0.75 + (fF/forceMaxRef)*0.75 + (fD/forceMaxRef);
+            facteurVertical = Math.min(facteurVertical, 6); 
+            const defY = currentDef * 0.35 * facteurVertical; 
+            
+            let facteurHorizontal = (fAB/forceMaxRef);
+            facteurHorizontal = Math.min(facteurHorizontal, 4);
+            const defX = facteurHorizontal * currentDef * 2.5; 
+
+            // Recalcul de la section locale pour le dessin
+            let sectionVal = 100;
+            if (currentLevel <= 4) {
+                const forme = document.getElementById('section-forme').value;
+                if (forme === 'carree') {
+                    const a = parseFloat(document.getElementById('dim-a').value) || 0;
+                    sectionVal = a * a;
+                } else {
+                    const b = parseFloat(document.getElementById('dim-b').value) || 0;
+                    const h = parseFloat(document.getElementById('dim-h').value) || 0;
+                    sectionVal = b * h;
+                }
+            }
+
+            const forceTotale = fC + fE + fF + fD + fAB;
+            // Rupture visible si taux > 100% (et force présente)
+            const isBroken = (currentStressRate > 100 && currentLevel === 3) || (sectionVal === 0 && forceTotale > 0);
+
+            let rawA = { x: originX - defX, y: originY }; 
+            let rawB = { x: originX + width + defX, y: originY }; 
+            
+            let asymX = 0;
+            if (hasContreficheG && !hasContreficheD && (fC || fE || fF)) asymX = defY * 0.4;
+            if (!hasContreficheG && hasContreficheD && (fC || fE || fF)) asymX = -defY * 0.4;
+            asymX -= (fE/forceMaxRef) * currentDef * 0.3;
+            asymX += (fF/forceMaxRef) * currentDef * 0.3;
+            
+            let rawC = { x: originX + width/2 + asymX, y: originY - height + defY }; 
+            
+            const dExtraDef = (!hasPoincon && fD > 0) ? defY * 1.5 : 0;
+            let rawD = { x: originX + width/2 + asymX, y: originY + defY * 0.5 + dExtraDef }; 
+
+            const eSag = (fE / forceMaxRef) * currentDef * (hasContreficheG ? 0.1 : 1.2);
+            let rawE = { x: (rawA.x + rawC.x) / 2, y: (rawA.y + rawC.y) / 2 + eSag }; 
+
+            const fSag = (fF / forceMaxRef) * currentDef * (hasContreficheD ? 0.1 : 1.2);
+            let rawF = { x: (rawB.x + rawC.x) / 2, y: (rawB.y + rawC.y) / 2 + fSag }; 
+
+            // Auto-framing
+            let minX = Math.min(rawA.x, rawB.x, rawC.x, rawD.x, rawE.x, rawF.x);
+            let maxX = Math.max(rawA.x, rawB.x, rawC.x, rawD.x, rawE.x, rawF.x);
+            let minY = Math.min(rawA.y, rawB.y, rawC.y, rawD.y, rawE.y, rawF.y);
+            let maxY = Math.max(rawA.y, rawB.y, rawC.y, rawD.y, rawE.y, rawF.y);
+
+            let curW = Math.max(maxX - minX, 550); 
+            let curH = Math.max(maxY - minY, 240);
+
+            const padTop = 130; 
+            const padBottom = 80; 
+            const padSide = 120; 
+
+            let targetScale = Math.min((canvas.width - 2 * padSide) / curW, (canvas.height - padTop - padBottom) / curH);
+            targetScale = Math.min(1.2, Math.max(0.1, targetScale)); 
+
+            let targetCamX = (minX + maxX) / 2;
+            let targetCamY = (minY + maxY) / 2;
+
+            camX += (targetCamX - camX) * 0.1;
+            camY += (targetCamY - camY) * 0.1;
+            camScale += (targetScale - camScale) * 0.1;
+
+            let displayCx = canvas.width / 2;
+            let displayCy = padTop + (canvas.height - padTop - padBottom) / 2;
+
+            function transform(pt) {
+                return {
+                    x: displayCx + (pt.x - camX) * camScale,
+                    y: displayCy + (pt.y - camY) * camScale
+                };
+            }
+
+            const A = transform(rawA); 
+            const B = transform(rawB); 
+            const C = transform(rawC); 
+            const D = transform(rawD); 
+            const E = transform(rawE); 
+            const F = transform(rawF); 
+
+            // Ligne de sol
+            ctx.strokeStyle = '#bdc3c7';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); 
+            ctx.moveTo(0, A.y + 25); 
+            ctx.lineTo(canvas.width, B.y + 25); 
+            ctx.stroke();
+
+            let visualThickness = 12;
+            if (currentLevel <= 4) {
+                visualThickness = sectionVal === 0 ? 2 : 6 + (sectionVal / 500) * 8; 
+            }
+
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            function renderCurvedBeam(p1, pMid, p2) {
+                const cpX = 2 * pMid.x - 0.5 * p1.x - 0.5 * p2.x;
+                const cpY = 2 * pMid.y - 0.5 * p1.y - 0.5 * p2.y;
+
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.quadraticCurveTo(cpX, cpY, p2.x, p2.y);
+                
+                ctx.lineWidth = visualThickness;
+                ctx.strokeStyle = getStressGradient(p1.x, p1.y, p2.x, p2.y, currentStressRate, isBroken);
+                if (isBroken) ctx.setLineDash([15, 10]);
+                else ctx.setLineDash([]);
+                ctx.stroke();
+                
+                if (sectionVal > 0) {
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.setLineDash([]);
+                    ctx.stroke();
+                }
+            }
+
+            function renderBeam(p1, p2) {
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.lineWidth = visualThickness;
+                ctx.strokeStyle = getStressGradient(p1.x, p1.y, p2.x, p2.y, currentStressRate, isBroken);
+                if (isBroken) ctx.setLineDash([15, 10]);
+                else ctx.setLineDash([]);
+                ctx.stroke();
+                
+                if (sectionVal > 0) {
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.setLineDash([]);
+                    ctx.stroke();
+                }
+            }
+
+            renderCurvedBeam(A, E, C); 
+            renderCurvedBeam(B, F, C); 
+            renderCurvedBeam(A, D, B); 
+
+            if (hasPoincon) renderBeam(C, D); 
+            if (hasContreficheG) renderBeam(D, E); 
+            if (hasContreficheD) renderBeam(D, F); 
+
+            ctx.fillStyle = '#f1c40f';
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2;
+            
+            let activeNodes = [A, B, C];
+            if (hasPoincon || hasContreficheG || hasContreficheD || fD > 0) activeNodes.push(D);
+            if (hasContreficheG || fE > 0) activeNodes.push(E);
+            if (hasContreficheD || fF > 0) activeNodes.push(F);
+
+            activeNodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, visualThickness/2 + 2, 0, Math.PI * 2);
+                ctx.fill(); ctx.stroke();
+            });
+
+            // Affichage des fractures d'éclatement si rupture
+            if (isBroken && forceTotale > 0) {
+                if (fC > 0) drawFracture(C.x, C.y + 15);
+                if (fE > 0) drawFracture(E.x, E.y);
+                if (fF > 0) drawFracture(F.x, F.y);
+                if (fD > 0) drawFracture(D.x, D.y);
+                if (fAB > 0) {
+                    // Si on tire sur les appuis, ça casse au milieu de l'entrait
+                    drawFracture((A.x + D.x) / 2, (A.y + D.y) / 2);
+                    drawFracture((B.x + D.x) / 2, (B.y + D.y) / 2);
+                }
+                
+                // Si la rupture est due uniquement à une section nulle sans force précise cochée (cas rare ici)
+                if (fC === 0 && fE === 0 && fF === 0 && fD === 0 && fAB === 0) {
+                    drawFracture(D.x, D.y);
+                }
+            }
+
+            if (sectionVal > 0) {
+                drawLabel("Entrait", D.x, D.y + 25, "center");
+                drawLabel("Arba.", E.x - 15, E.y - 15, "right");
+                drawLabel("Arba.", F.x + 15, F.y - 15, "left");
+                
+                if (hasPoincon) drawLabel("Poinçon", (C.x + D.x)/2 + 15, (C.y + D.y)/2, "left");
+                if (hasContreficheG) drawLabel("Contre. G", (D.x + E.x)/2, (D.y + E.y)/2 + 20, "center");
+                if (hasContreficheD) drawLabel("Contre. D", (D.x + F.x)/2, (D.y + F.y)/2 + 20, "center");
+            }
+
+            if (fAB > 0) {
+                drawSupport(A.x, A.y, 'mobile'); 
+            } else {
+                drawSupport(A.x, A.y, 'fixe'); 
+            }
+            drawSupport(B.x, B.y, 'mobile'); 
+
+            ctx.fillStyle = "#e84118";
+            ctx.strokeStyle = "#c23616";
+            ctx.lineWidth = 3;
+
+            function drawBoldArrow(x, y, angle, label, forceValue) {
+                if (forceValue === 0) return;
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+                
+                const minLength = 15;
+                const maxLength = 100;
+                const ratio = Math.min(forceValue / forceMaxRef, 1);
+                const bodyLength = minLength + (ratio * (maxLength - minLength));
+                
+                ctx.fillRect(0, -6, -bodyLength, 12);
+                ctx.strokeRect(0, -6, -bodyLength, 12);
+                
+                ctx.beginPath();
+                ctx.moveTo(0, -12);
+                ctx.lineTo(15, 0);
+                ctx.lineTo(0, 12);
+                ctx.closePath();
+                ctx.fill(); ctx.stroke();
+
+                if (label && currentLevel === 3) {
+                    ctx.rotate(-angle); 
+                    ctx.fillStyle = "#2c3e50";
+                    ctx.font = "bold 13px Arial";
+                    ctx.fillText(label, 15, -20);
+                }
+                ctx.restore();
+            }
+
+            if (fC > 0) drawBoldArrow(C.x, C.y - visualThickness - 10, Math.PI/2, fC + " N", fC);
+            if (fE > 0) drawBoldArrow(E.x, E.y - visualThickness - 10, Math.PI/2, fE + " N", fE);
+            if (fF > 0) drawBoldArrow(F.x, F.y - visualThickness - 10, Math.PI/2, fF + " N", fF);
+            if (fD > 0) drawBoldArrow(D.x, D.y - visualThickness - 10, Math.PI/2, fD + " N", fD);
+            if (fAB > 0) {
+                drawBoldArrow(A.x - visualThickness - 10, A.y, Math.PI, fAB + " N", fAB);
+                drawBoldArrow(B.x + visualThickness + 10, B.y, 0, "", fAB);
+            }
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>
