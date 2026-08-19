@@ -341,7 +341,7 @@
                 <div id="res-lvl3" class="hidden">
                     <p><strong>Taux de travail global (pire cas) :</strong> <span id="res-taux">0.0</span> %</p>
                     <p><strong>Écart modèle/réel :</strong> <span id="res-ecart" style="font-style: italic;">En attente de saisie...</span></p>
-                    <p id="alerte-rupture" class="alert hidden">⚠️ RUPTURE : Limite d'élasticité dépassée ou structure trop faible !</p>
+                    <p id="alerte-rupture" class="alert hidden">⚠️ RUPTURE : Limite d'élasticité dépassée !</p>
                 </div>
             </div>
         </div>
@@ -373,9 +373,59 @@
         let camY = 200;
         let camScale = 1;
 
+        // Variables pour gérer l'état de rupture et le son
+        let wasBroken = false;
+        let audioCtx = null;
+
         function init() {
             setLevel(5);
             animate();
+        }
+
+        // Fonction pour générer un son sec de cassure avec l'API Web Audio
+        function playSnapSound() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            // Un son grave et rapide
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+            
+            // Enveloppe du volume très sèche
+            gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+            
+            // Ajout d'une couche de bruit blanc pour le côté "craquement"
+            const bufferSize = audioCtx.sampleRate * 0.15;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.value = 800;
+            
+            noise.connect(noiseFilter);
+            noiseFilter.connect(gainNode);
+            noise.start();
         }
 
         function updateForceMax() {
@@ -534,16 +584,26 @@
 
             document.getElementById('res-deformation').innerText = (section === 0 && forceTotale > 0) ? "∞" : deformation.toFixed(2);
             
+            // GESTION DE LA RUPTURE ET DU SON
+            let isNowBroken = false;
+
             if (currentLevel === 3) {
                 document.getElementById('res-taux').innerText = (section === 0 && forceTotale > 0) ? "∞" : tauxTravail.toFixed(1);
                 
                 const alerte = document.getElementById('alerte-rupture');
-                if (tauxTravail > 100 || (section === 0 && forceTotale > 0)) {
+                isNowBroken = (tauxTravail > 100 || (section === 0 && forceTotale > 0));
+
+                if (isNowBroken) {
                     alerte.classList.remove('hidden');
                     if (section === 0) {
                         alerte.innerText = "⚠️ RUPTURE : Section nulle ! La structure n'existe pas.";
                     } else {
-                        alerte.innerText = "⚠️ RUPTURE : Limite d'élasticité dépassée ou structure trop faible !";
+                        alerte.innerText = `⚠️ RUPTURE : La limite d'élasticité a cédé sous une force cumulée de ${forceTotale.toFixed(0)} N !`;
+                    }
+                    
+                    // Déclenchement du son uniquement au moment de la rupture
+                    if (!wasBroken) {
+                        playSnapSound();
                     }
                 } else {
                     alerte.classList.add('hidden');
@@ -560,6 +620,8 @@
             } else {
                 targetStressRate = 0; 
             }
+
+            wasBroken = isNowBroken;
 
             if (!isValidGeo || forceTotale === 0) {
                 targetDef = 0;
@@ -664,12 +726,10 @@
             ctx.restore();
         }
 
-        // Nouvelle fonction pour dessiner le symbole de rupture
         function drawFracture(x, y) {
             ctx.save();
             ctx.translate(x, y);
             ctx.beginPath();
-            // Dessin d'une "étoile de rupture" stylisée
             const pts = [
                 0, -18, 5, -5, 18, -8, 8, 5, 15, 18, 0, 10, -15, 18, -8, 5, -18, -8, -5, -5
             ];
@@ -679,10 +739,10 @@
             }
             ctx.closePath();
             
-            ctx.fillStyle = "#f39c12"; // Orange d'avertissement
+            ctx.fillStyle = "#f39c12"; 
             ctx.fill();
             ctx.lineWidth = 2.5;
-            ctx.strokeStyle = "#c0392b"; // Rouge foncé
+            ctx.strokeStyle = "#c0392b"; 
             ctx.stroke();
             ctx.restore();
         }
@@ -727,7 +787,6 @@
             facteurHorizontal = Math.min(facteurHorizontal, 4);
             const defX = facteurHorizontal * currentDef * 2.5; 
 
-            // Recalcul de la section locale pour le dessin
             let sectionVal = 100;
             if (currentLevel <= 4) {
                 const forme = document.getElementById('section-forme').value;
@@ -742,7 +801,6 @@
             }
 
             const forceTotale = fC + fE + fF + fD + fAB;
-            // Rupture visible si taux > 100% (et force présente)
             const isBroken = (currentStressRate > 100 && currentLevel === 3) || (sectionVal === 0 && forceTotale > 0);
 
             let rawA = { x: originX - defX, y: originY }; 
@@ -765,7 +823,6 @@
             const fSag = (fF / forceMaxRef) * currentDef * (hasContreficheD ? 0.1 : 1.2);
             let rawF = { x: (rawB.x + rawC.x) / 2, y: (rawB.y + rawC.y) / 2 + fSag }; 
 
-            // Auto-framing
             let minX = Math.min(rawA.x, rawB.x, rawC.x, rawD.x, rawE.x, rawF.x);
             let maxX = Math.max(rawA.x, rawB.x, rawC.x, rawD.x, rawE.x, rawF.x);
             let minY = Math.min(rawA.y, rawB.y, rawC.y, rawD.y, rawE.y, rawF.y);
@@ -805,7 +862,6 @@
             const E = transform(rawE); 
             const F = transform(rawF); 
 
-            // Ligne de sol
             ctx.strokeStyle = '#bdc3c7';
             ctx.lineWidth = 3;
             ctx.beginPath(); 
@@ -884,19 +940,16 @@
                 ctx.fill(); ctx.stroke();
             });
 
-            // Affichage des fractures d'éclatement si rupture
             if (isBroken && forceTotale > 0) {
                 if (fC > 0) drawFracture(C.x, C.y + 15);
                 if (fE > 0) drawFracture(E.x, E.y);
                 if (fF > 0) drawFracture(F.x, F.y);
                 if (fD > 0) drawFracture(D.x, D.y);
                 if (fAB > 0) {
-                    // Si on tire sur les appuis, ça casse au milieu de l'entrait
                     drawFracture((A.x + D.x) / 2, (A.y + D.y) / 2);
                     drawFracture((B.x + D.x) / 2, (B.y + D.y) / 2);
                 }
                 
-                // Si la rupture est due uniquement à une section nulle sans force précise cochée (cas rare ici)
                 if (fC === 0 && fE === 0 && fF === 0 && fD === 0 && fAB === 0) {
                     drawFracture(D.x, D.y);
                 }
