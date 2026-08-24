@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulateur d'efforts dynamique - Fermette (Cycle 4)</title>
+    <style>
+        :root {
+            --primary: #1e272e;
+            --secondary: #485460;
+            --accent: #0fb9b1;
+            --bg: #d2dae2;
+            --text: #1e272e;
+            --panel-bg: #ffffff;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 { color: var(--primary); }
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1300px;
+            width: 100%;
+        }
+        .panel {
+            background: var(--panel-bg);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        .controls {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .visualization {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            background: #fdfdfd;
+            border: 2px solid #d1d8e0;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 800px;
+        }
+        .level-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        .level-btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 20px;
+            background: #a4b0be;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            transition: 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .level-btn.active {
+            background: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(15, 185, 177, 0.3);
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .control-group label {
+            font-weight: 600;
+            font-size: 0.95em;
+            color: var(--secondary);
+        }
+        select, input[type="number"], input[type="range"] {
+            padding: 8px;
+            border: 1px solid #ced6e0;
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            background-color: #f1f2f6;
+            font-family: inherit;
+        }
+        .checkbox-group {
+            background: #f1f2f6;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #ced6e0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .checkbox-group > label {
+            font-weight: normal;
+            font-size: 0.9em;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin-top: 2px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+            cursor: pointer;
+            transform: scale(1.2);
+        }
+        .force-slider {
+            padding-left: 28px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85em;
+            color: var(--accent);
+            font-weight: bold;
+        }
+        .force-slider input[type="range"] {
+            flex: 1;
+            padding: 0;
+            height: 6px;
+            cursor: pointer;
+        }
+        .force-val-text {
+            width: 55px;
+            text-align: right;
+            display: inline-block;
+        }
+        .results {
+            background: #f8f9fa;
+            padding: 20px;
+            border-left: 5px solid var(--accent);
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .hidden { display: none !important; }
+        .material-info {
+            font-size: 0.85em;
+            background: #e8f4f8;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 5px;
+            border: 1px solid #d1d8e0;
+            line-height: 1.5;
+        }
+        .alert {
+            color: #eb3b5a;
+            font-weight: bold;
+            background: #fc5c6522;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #fc5c65;
+            animation: pulse 1.5s infinite;
+        }
+        .geo-box {
+            background: #fff3e0; 
+            padding: 12px; 
+            border-radius: 6px; 
+            border: 1px dashed #e67e22;
+        }
+        .profile-box {
+            background: #eaf2f8; 
+            padding: 12px; 
+            border-radius: 6px; 
+            border: 1px dashed #3498db;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Modélisation Structurelle - Fermette</h1>
+        <div class="level-selector">
+            <button class="level-btn" onclick="setLevel(5)">Niveau 5ème</button>
+            <button class="level-btn" onclick="setLevel(4)">Niveau 4ème</button>
+            <button class="level-btn" onclick="setLevel(3)">Niveau 3ème</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="panel controls">
+            <h3 style="margin-top: 0; margin-bottom: 10px;">Paramètres de l'étude</h3>
+            
+            <div class="control-group geo-box">
+                <label style="color: #d35400;">Dimensions géométriques (Maquette)</label>
+                <div style="display: flex; gap: 10px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Entrait (mm)</label>
+                        <input type="number" id="dim-entrait" value="300" step="10" min="10" oninput="updateSimulation()">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Arbalétriers (mm)</label>
+                        <input type="number" id="dim-arba" value="200" step="10" min="10" oninput="updateSimulation()">
+                    </div>
+                </div>
+                <div style="font-size: 0.85em; color: #d35400; margin-top: 10px;">
+                    <strong>Déductions automatiques :</strong><br>
+                    Poinçon : <span id="val-poincon">132.3</span> mm<br>
+                    Contrefiches : <span id="val-contrefiche">100.0</span> mm
+                </div>
+                <div id="dim-error" class="alert hidden" style="font-size: 0.85em; padding: 5px; margin-top: 8px;">
+                    ⚠️ Géométrie impossible : Les arbalétriers sont trop courts pour se rejoindre !
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Architecture de la structure</label>
+                <div class="checkbox-group" style="background: #e8f4f8; border-color: #bde0f0;">
+                    <label><input type="checkbox" id="struct-poincon" checked onchange="updateSimulation()"> Poinçon (Pièce centrale verticale)</label>
+                    <label><input type="checkbox" id="struct-contrefiche-g" checked onchange="updateSimulation()"> Contrefiche Gauche</label>
+                    <label><input type="checkbox" id="struct-contrefiche-d" checked onchange="updateSimulation()"> Contrefiche Droite</label>
+                </div>
+            </div>
+
+            <div class="control-group lvl-3 hidden">
+                <label style="color: var(--accent);">Valeur maximale des curseurs de force (N)</label>
+                <input type="number" id="force-max" value="10000" min="10" step="50" oninput="updateForceMax()">
+            </div>
+
+            <div class="control-group">
+                <label>Points d'application des forces</label>
+                <div class="checkbox-group">
+                    
+                    <label><input type="checkbox" id="force-C" checked onchange="updateSimulation()"> Nœud C (Faitage) - Charge verticale</label>
+                    <div id="slider-C" class="force-slider hidden">
+                        <input type="range" id="val-force-C" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-C" class="force-val-text">150</span> N
+                    </div>
+
+                    <label><input type="checkbox" id="force-E" onchange="updateSimulation()"> Nœud E (Arbalétrier Gauche) - Charge verticale</label>
+                    <div id="slider-E" class="force-slider hidden">
+                        <input type="range" id="val-force-E" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-E" class="force-val-text">150</span> N
+                    </div>
+
+                    <label><input type="checkbox" id="force-F" onchange="updateSimulation()"> Nœud F (Arbalétrier Droit) - Charge verticale</label>
+                    <div id="slider-F" class="force-slider hidden">
+                        <input type="range" id="val-force-F" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-F" class="force-val-text">150</span> N
+                    </div>
+
+                    <label><input type="checkbox" id="force-D" onchange="updateSimulation()"> Nœud D (Entrait) - Charge suspendue</label>
+                    <div id="slider-D" class="force-slider hidden">
+                        <input type="range" id="val-force-D" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-D" class="force-val-text">150</span> N
+                    </div>
+
+                    <label><input type="checkbox" id="force-AB" onchange="updateSimulation()"> Nœuds A & B (Appuis) - Traction écartement</label>
+                    <div id="slider-AB" class="force-slider hidden">
+                        <input type="range" id="val-force-AB" min="0" max="10000" step="10" value="150" oninput="updateSimulation()"> 
+                        <span id="text-force-AB" class="force-val-text">150</span> N
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Matériau de la structure</label>
+                <select id="materiau" onchange="updateSimulation()">
+                    <option value="bois">Bois de charpente (Épicéa)</option>
+                    <option value="balsa" selected>Bois de maquette (Balsa)</option>
+                    <option value="acier">Acier S235 (Construction)</option>
+                    <option value="aluminium">Aluminium 6060</option>
+                    <option value="abs">Plastique rigide (ABS)</option>
+                    <option value="pvc_rigide">Plastique (PVC Rigide)</option>
+                    <option value="pvc_expanse">Plastique souple (PVC Expansé / Forex)</option>
+                </select>
+                <div id="material-info" class="material-info"></div>
+            </div>
+
+            <div class="control-group lvl-4 hidden profile-box">
+                <label style="color: #2980b9;">Profilé de la poutre</label>
+                <select id="section-forme" onchange="updateSimulation()">
+                    <option value="carree">Carrée</option>
+                    <option value="rectangulaire">Rectangulaire</option>
+                </select>
+                
+                <div id="inputs-carree" style="display: flex; gap: 10px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Côté (mm)</label>
+                        <input type="number" id="dim-a" value="10" min="0" step="1" oninput="updateSimulation()">
+                    </div>
+                </div>
+
+                <div id="inputs-rect" style="display: none; gap: 10px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Largeur (mm)</label>
+                        <input type="number" id="dim-b" value="10" min="0" step="1" oninput="updateSimulation()">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8em; font-weight: normal;">Hauteur (mm)</label>
+                        <input type="number" id="dim-h" value="20" min="0" step="1" oninput="updateSimulation()">
+                    </div>
+                </div>
+
+                <div style="font-size: 0.85em; color: #2980b9; margin-top: 10px;">
+                    <strong>Section calculée : <span id="section-val">100.0</span> mm²</strong>
+                </div>
+            </div>
+
+            <div class="control-group lvl-3 hidden">
+                <label>Saisie : Mesure expérimentale (mm)</label>
+                <input type="number" id="mesure-exp" placeholder="Exemple : 4.5" step="0.1" oninput="updateSimulation()">
+            </div>
+        </div>
+
+        <div class="panel visualization">
+            <h3 style="margin-top: 0;">Rendu Cinématique & Contraintes</h3>
+            <canvas id="fermetteCanvas" width="800" height="400"></canvas>
+            
+            <div class="results" id="result-panel">
+                <h4 style="margin-top: 0; color: var(--secondary);">Analyse des résultats</h4>
+                <p><strong>Déplacement nodal max (théorique) :</strong> <span id="res-deformation" style="font-size: 1.2em; color: var(--accent);">0.00</span> mm</p>
+                <div id="res-lvl3" class="hidden">
+                    <p><strong>Taux de travail global (pire cas) :</strong> <span id="res-taux">0.0</span> %</p>
+                    <p><strong>Écart modèle/réel :</strong> <span id="res-ecart" style="font-style: italic;">En attente de saisie...</span></p>
+                    <p id="alerte-rupture" class="alert hidden">⚠️ RUPTURE : Limite d'élasticité dépassée !</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const materiaux = {
+            bois: { nom: "Bois (Épicéa)", moduleYoung: 11000, limiteElastique: 24, carbone: "Très faible", recyclabilite: "Haute", defaultColor: "#d35400" },
+            balsa: { nom: "Bois de maquette (Balsa)", moduleYoung: 3000, limiteElastique: 12, carbone: "Très faible", recyclabilite: "Haute", defaultColor: "#f5deb3" },
+            acier: { nom: "Acier S235", moduleYoung: 210000, limiteElastique: 235, carbone: "Élevée", recyclabilite: "Très haute", defaultColor: "#7f8c8d" },
+            aluminium: { nom: "Aluminium", moduleYoung: 69000, limiteElastique: 160, carbone: "Très élevée", recyclabilite: "Très haute", defaultColor: "#bdc3c7" },
+            abs: { nom: "Plastique rigide (ABS)", moduleYoung: 2300, limiteElastique: 40, carbone: "Élevée", recyclabilite: "Moyenne", defaultColor: "#f39c12" },
+            pvc_rigide: { nom: "PVC Rigide", moduleYoung: 3000, limiteElastique: 45, carbone: "Très élevée", recyclabilite: "Faible", defaultColor: "#95a5a6" },
+            pvc_expanse: { nom: "PVC Expansé", moduleYoung: 800, limiteElastique: 15, carbone: "Très élevée", recyclabilite: "Faible", defaultColor: "#ecf0f1" }
+        };
+
+        let currentLevel = 5;
+        const canvas = document.getElementById('fermetteCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Variables de cinématique
+        let currentDef = 0;
+        let targetDef = 0;
+        let currentStressRate = 0;
+        let targetStressRate = 0;
+
+        // Variables de la Caméra Auto-Adaptative
+        let camX = 400;
+        let camY = 200;
+        let camScale = 1;
+
+        // Variables pour gérer l'état de rupture et le son
+        let wasBroken = false;
+        let audioCtx = null;
+
+        function init() {
+            setLevel(5);
+            animate();
+        }
+
+        // Fonction pour générer un son sec de cassure avec l'API Web Audio
+        function playSnapSound() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            // Un son grave et rapide
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+            
+            // Enveloppe du volume très sèche
+            gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+            
+            // Ajout d'une couche de bruit blanc pour le côté "craquement"
+            const bufferSize = audioCtx.sampleRate * 0.15;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.value = 800;
+            
+            noise.connect(noiseFilter);
+            noiseFilter.connect(gainNode);
+            noise.start();
+        }
+
+        function updateForceMax() {
+            let maxVal = parseFloat(document.getElementById('force-max').value);
+            if (isNaN(maxVal) || maxVal <= 0) maxVal = 1000;
+            
+            ['C', 'E', 'F', 'D', 'AB'].forEach(id => {
+                const slider = document.getElementById(`val-force-${id}`);
+                slider.max = maxVal;
+                
+                let newStep = maxVal / 100;
+                if (newStep < 0.1) newStep = 0.1;
+                slider.step = newStep;
+
+                if (parseFloat(slider.value) > maxVal) {
+                    slider.value = maxVal;
+                    document.getElementById(`text-force-${id}`).innerText = parseFloat(maxVal).toFixed(0);
+                }
+            });
+            updateSimulation();
+        }
+
+        function setLevel(level) {
+            currentLevel = level;
+            
+            const btns = document.querySelectorAll('.level-btn');
+            btns.forEach(btn => btn.classList.remove('active'));
+            if (level === 5) btns[0].classList.add('active');
+            if (level === 4) btns[1].classList.add('active');
+            if (level === 3) btns[2].classList.add('active');
+
+            document.querySelectorAll('.lvl-4, .lvl-3').forEach(el => el.classList.add('hidden'));
+            document.getElementById('res-lvl3').classList.add('hidden');
+
+            if (level <= 4) document.querySelectorAll('.lvl-4').forEach(el => el.classList.remove('hidden'));
+            if (level === 3) {
+                document.querySelectorAll('.lvl-3').forEach(el => el.classList.remove('hidden'));
+                document.getElementById('res-lvl3').classList.remove('hidden');
+            }
+
+            if(level > 3) {
+                ['C', 'E', 'F', 'D', 'AB'].forEach(id => {
+                    document.getElementById(`val-force-${id}`).value = 150; 
+                });
+            }
+
+            updateSimulation();
+        }
+
+        function updateSimulation(sourceElement) {
+            if (sourceElement && sourceElement.id.startsWith('val-force-')) {
+                const id = sourceElement.id.replace('val-force-', '');
+                document.getElementById(`text-force-${id}`).innerText = parseFloat(sourceElement.value).toFixed(0);
+            }
+
+            const inputEntrait = parseFloat(document.getElementById('dim-entrait').value) || 1;
+            const inputArba = parseFloat(document.getElementById('dim-arba').value) || 1;
+            
+            let valPoincon = 0;
+            let valContrefiche = 0;
+            let isValidGeo = false;
+
+            if (inputArba > inputEntrait / 2) {
+                isValidGeo = true;
+                valPoincon = Math.sqrt(Math.pow(inputArba, 2) - Math.pow(inputEntrait / 2, 2));
+                valContrefiche = inputArba / 2; 
+                
+                document.getElementById('val-poincon').innerText = valPoincon.toFixed(1);
+                document.getElementById('val-contrefiche').innerText = valContrefiche.toFixed(1);
+                document.getElementById('dim-error').classList.add('hidden');
+            } else {
+                document.getElementById('dim-error').classList.remove('hidden');
+                document.getElementById('val-poincon').innerText = "-";
+                document.getElementById('val-contrefiche').innerText = "-";
+            }
+
+            const hasPoincon = document.getElementById('struct-poincon').checked;
+            const hasContreficheG = document.getElementById('struct-contrefiche-g').checked;
+            const hasContreficheD = document.getElementById('struct-contrefiche-d').checked;
+
+            ['C', 'E', 'F', 'D', 'AB'].forEach(id => {
+                const cb = document.getElementById(`force-${id}`).checked;
+                const sliderDiv = document.getElementById(`slider-${id}`);
+                if (cb && currentLevel === 3) {
+                    sliderDiv.classList.remove('hidden');
+                    document.getElementById(`text-force-${id}`).innerText = parseFloat(document.getElementById(`val-force-${id}`).value).toFixed(0);
+                } else {
+                    sliderDiv.classList.add('hidden');
+                }
+            });
+
+            const fC = document.getElementById('force-C').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-C').value) : 150) : 0;
+            const fE = document.getElementById('force-E').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-E').value) : 150) : 0;
+            const fF = document.getElementById('force-F').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-F').value) : 150) : 0;
+            const fD = document.getElementById('force-D').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-D').value) : 150) : 0;
+            const fAB = document.getElementById('force-AB').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-AB').value) : 150) : 0;
+            
+            const forceTotale = fC + fE + fF + fD + fAB;
+
+            let facteurRigidite = 1.0;
+            let missingContrefiches = 0;
+            if (!hasContreficheG) missingContrefiches++;
+            if (!hasContreficheD) missingContrefiches++;
+            
+            if (missingContrefiches === 1) facteurRigidite *= 1.5;
+            if (missingContrefiches === 2) facteurRigidite *= 2.0; 
+            if (!hasPoincon) facteurRigidite *= 1.5;
+
+            let matKey = document.getElementById('materiau').value;
+            const mat = materiaux[matKey];
+            
+            document.getElementById('material-info').innerHTML = `
+                <strong>Propriétés physiques :</strong> Module de Young = ${mat.moduleYoung} MPa | Limite élastique = ${mat.limiteElastique} MPa<br>
+                <strong>Données environnementales :</strong> Empreinte carbone = ${mat.carbone} | Recyclabilité = ${mat.recyclabilite}
+            `;
+
+            let section = 100;
+            if (currentLevel <= 4) {
+                const forme = document.getElementById('section-forme').value;
+                const divCarree = document.getElementById('inputs-carree');
+                const divRect = document.getElementById('inputs-rect');
+
+                if (forme === 'carree') {
+                    divCarree.style.display = 'flex';
+                    divRect.style.display = 'none';
+                    const a = parseFloat(document.getElementById('dim-a').value) || 0;
+                    section = a * a;
+                } else {
+                    divCarree.style.display = 'none';
+                    divRect.style.display = 'flex';
+                    const b = parseFloat(document.getElementById('dim-b').value) || 0;
+                    const h = parseFloat(document.getElementById('dim-h').value) || 0;
+                    section = b * h;
+                }
+                document.getElementById('section-val').innerText = section.toFixed(1);
+            }
+
+            const longueurUtilisee = isValidGeo ? inputEntrait : 1; 
+            
+            let deformation = 0;
+            let contrainte = 0;
+            let tauxTravail = 0;
+
+            if (isValidGeo) {
+                if (section === 0) {
+                    if (forceTotale > 0) {
+                        deformation = Infinity;
+                        tauxTravail = Infinity;
+                    }
+                } else {
+                    deformation = ((forceTotale * longueurUtilisee) / (mat.moduleYoung * section)) * facteurRigidite;
+                    contrainte = (forceTotale / section) * facteurRigidite;
+                    tauxTravail = (contrainte / mat.limiteElastique) * 100;
+                }
+            }
+
+            document.getElementById('res-deformation').innerText = (section === 0 && forceTotale > 0) ? "∞" : deformation.toFixed(2);
+            
+            // GESTION DE LA RUPTURE ET DU SON
+            let isNowBroken = false;
+
+            if (currentLevel === 3) {
+                document.getElementById('res-taux').innerText = (section === 0 && forceTotale > 0) ? "∞" : tauxTravail.toFixed(1);
+                
+                const alerte = document.getElementById('alerte-rupture');
+                isNowBroken = (tauxTravail > 100 || (section === 0 && forceTotale > 0));
+
+                if (isNowBroken) {
+                    alerte.classList.remove('hidden');
+                    if (section === 0) {
+                        alerte.innerText = "⚠️ RUPTURE : Section nulle ! La structure n'existe pas.";
+                    } else {
+                        alerte.innerText = `⚠️ RUPTURE : La limite d'élasticité a cédé sous une force cumulée de ${forceTotale.toFixed(0)} N !`;
+                    }
+                    
+                    // Déclenchement du son uniquement au moment de la rupture
+                    if (!wasBroken) {
+                        playSnapSound();
+                    }
+                } else {
+                    alerte.classList.add('hidden');
+                }
+
+                const mesureExp = parseFloat(document.getElementById('mesure-exp').value);
+                const ecartEl = document.getElementById('res-ecart');
+                if (!isNaN(mesureExp) && section !== 0 && isValidGeo) {
+                    ecartEl.innerText = `${Math.abs(mesureExp - deformation).toFixed(2)} mm de différence`;
+                } else {
+                    ecartEl.innerText = "En attente de saisie valide...";
+                }
+                targetStressRate = tauxTravail;
+            } else {
+                targetStressRate = 0; 
+            }
+
+            wasBroken = isNowBroken;
+
+            if (!isValidGeo || forceTotale === 0) {
+                targetDef = 0;
+            } else if (section === 0 && forceTotale > 0) {
+                targetDef = 220; 
+            } else {
+                const forceMaxRef = parseFloat(document.getElementById('force-max').value) || 1000;
+                let defBase = ((forceMaxRef * 0.15 * longueurUtilisee) / (mat.moduleYoung * (section === 0 ? 1 : section))) * facteurRigidite;
+                const ratioForce = forceTotale / (forceMaxRef * 5); 
+                targetDef = Math.min(defBase * 400 * ratioForce, 150); 
+                if (tauxTravail > 100 && currentLevel === 3) targetDef = 220; 
+            }
+        }
+
+        function animate() {
+            currentDef += (targetDef - currentDef) * 0.08;
+            currentStressRate += (targetStressRate - currentStressRate) * 0.08;
+            
+            drawScene();
+            requestAnimationFrame(animate);
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = '#ecf0f1';
+            ctx.lineWidth = 1;
+            for(let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            }
+            for(let i = 0; i < canvas.height; i += 20) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+        }
+
+        function getStressGradient(x1, y1, x2, y2, stressRate, isBroken) {
+            const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+            let matKey = document.getElementById('materiau').value;
+            let baseColor = materiaux[matKey].defaultColor;
+
+            if (currentLevel === 3) {
+                if (isBroken) {
+                    grad.addColorStop(0, "#c0392b");
+                    grad.addColorStop(0.5, "#e74c3c");
+                    grad.addColorStop(1, "#c0392b");
+                } else if (stressRate > 80) {
+                    grad.addColorStop(0, "#e67e22");
+                    grad.addColorStop(0.5, "#f1c40f");
+                    grad.addColorStop(1, "#e67e22");
+                } else if (stressRate > 40) {
+                    grad.addColorStop(0, "#27ae60");
+                    grad.addColorStop(0.5, "#2ecc71");
+                    grad.addColorStop(1, "#27ae60");
+                } else {
+                    grad.addColorStop(0, "#2980b9");
+                    grad.addColorStop(0.5, "#3498db");
+                    grad.addColorStop(1, "#2980b9");
+                }
+            } else {
+                grad.addColorStop(0, baseColor);
+                grad.addColorStop(1, adjustColor(baseColor, 40));
+            }
+            return grad;
+        }
+
+        function adjustColor(color, amount) {
+            return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+        }
+
+        function drawSupport(x, y, type) {
+            ctx.fillStyle = '#7f8c8d';
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2;
+            
+            if (type === 'fixe') {
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - 15, y + 25);
+                ctx.lineTo(x + 15, y + 25);
+                ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                ctx.fillRect(x - 20, y + 25, 40, 10);
+            } else if (type === 'mobile') {
+                ctx.beginPath();
+                ctx.arc(x - 8, y + 10, 8, 0, Math.PI * 2);
+                ctx.arc(x + 8, y + 10, 8, 0, Math.PI * 2);
+                ctx.fill(); ctx.stroke();
+                ctx.fillRect(x - 20, y + 20, 40, 10);
+            }
+        }
+
+        function drawLabel(text, x, y, align="center") {
+            ctx.save();
+            ctx.font = "bold 13px 'Segoe UI', Arial, sans-serif";
+            ctx.textAlign = align;
+            ctx.textBaseline = "middle";
+            
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.strokeText(text, x, y);
+            
+            ctx.fillStyle = "#2c3e50";
+            ctx.fillText(text, x, y);
+            ctx.restore();
+        }
+
+        function drawFracture(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.beginPath();
+            const pts = [
+                0, -18, 5, -5, 18, -8, 8, 5, 15, 18, 0, 10, -15, 18, -8, 5, -18, -8, -5, -5
+            ];
+            ctx.moveTo(pts[0], pts[1]);
+            for(let i=2; i<pts.length; i+=2) {
+                ctx.lineTo(pts[i], pts[i+1]);
+            }
+            ctx.closePath();
+            
+            ctx.fillStyle = "#f39c12"; 
+            ctx.fill();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = "#c0392b"; 
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+
+            const inputEntrait = parseFloat(document.getElementById('dim-entrait').value) || 1;
+            const inputArba = parseFloat(document.getElementById('dim-arba').value) || 1;
+            
+            if (inputArba <= inputEntrait / 2) return;
+
+            const valPoincon = Math.sqrt(Math.pow(inputArba, 2) - Math.pow(inputEntrait / 2, 2));
+            const geoRatio = valPoincon / inputEntrait;
+            
+            let drawWidth = 550;
+            let drawHeight = drawWidth * geoRatio;
+            
+            const originX = 400 - drawWidth / 2; 
+            const originY = 320;
+            const width = drawWidth;
+            const height = drawHeight;
+
+            const forceMaxRef = parseFloat(document.getElementById('force-max').value) || 1000;
+
+            const hasPoincon = document.getElementById('struct-poincon').checked;
+            const hasContreficheG = document.getElementById('struct-contrefiche-g').checked;
+            const hasContreficheD = document.getElementById('struct-contrefiche-d').checked;
+            
+            const fC = document.getElementById('force-C').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-C').value) : 150) : 0;
+            const fE = document.getElementById('force-E').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-E').value) : 150) : 0;
+            const fF = document.getElementById('force-F').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-F').value) : 150) : 0;
+            const fD = document.getElementById('force-D').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-D').value) : 150) : 0;
+            const fAB = document.getElementById('force-AB').checked ? (currentLevel === 3 ? parseFloat(document.getElementById('val-force-AB').value) : 150) : 0;
+
+            let facteurVertical = (fC/forceMaxRef) + (fE/forceMaxRef)*0.75 + (fF/forceMaxRef)*0.75 + (fD/forceMaxRef);
+            facteurVertical = Math.min(facteurVertical, 6); 
+            const defY = currentDef * 0.35 * facteurVertical; 
+            
+            let facteurHorizontal = (fAB/forceMaxRef);
+            facteurHorizontal = Math.min(facteurHorizontal, 4);
+            const defX = facteurHorizontal * currentDef * 2.5; 
+
+            let sectionVal = 100;
+            if (currentLevel <= 4) {
+                const forme = document.getElementById('section-forme').value;
+                if (forme === 'carree') {
+                    const a = parseFloat(document.getElementById('dim-a').value) || 0;
+                    sectionVal = a * a;
+                } else {
+                    const b = parseFloat(document.getElementById('dim-b').value) || 0;
+                    const h = parseFloat(document.getElementById('dim-h').value) || 0;
+                    sectionVal = b * h;
+                }
+            }
+
+            const forceTotale = fC + fE + fF + fD + fAB;
+            const isBroken = (currentStressRate > 100 && currentLevel === 3) || (sectionVal === 0 && forceTotale > 0);
+
+            let rawA = { x: originX - defX, y: originY }; 
+            let rawB = { x: originX + width + defX, y: originY }; 
+            
+            let asymX = 0;
+            if (hasContreficheG && !hasContreficheD && (fC || fE || fF)) asymX = defY * 0.4;
+            if (!hasContreficheG && hasContreficheD && (fC || fE || fF)) asymX = -defY * 0.4;
+            asymX -= (fE/forceMaxRef) * currentDef * 0.3;
+            asymX += (fF/forceMaxRef) * currentDef * 0.3;
+            
+            let rawC = { x: originX + width/2 + asymX, y: originY - height + defY }; 
+            
+            const dExtraDef = (!hasPoincon && fD > 0) ? defY * 1.5 : 0;
+            let rawD = { x: originX + width/2 + asymX, y: originY + defY * 0.5 + dExtraDef }; 
+
+            const eSag = (fE / forceMaxRef) * currentDef * (hasContreficheG ? 0.1 : 1.2);
+            let rawE = { x: (rawA.x + rawC.x) / 2, y: (rawA.y + rawC.y) / 2 + eSag }; 
+
+            const fSag = (fF / forceMaxRef) * currentDef * (hasContreficheD ? 0.1 : 1.2);
+            let rawF = { x: (rawB.x + rawC.x) / 2, y: (rawB.y + rawC.y) / 2 + fSag }; 
+
+            let minX = Math.min(rawA.x, rawB.x, rawC.x, rawD.x, rawE.x, rawF.x);
+            let maxX = Math.max(rawA.x, rawB.x, rawC.x, rawD.x, rawE.x, rawF.x);
+            let minY = Math.min(rawA.y, rawB.y, rawC.y, rawD.y, rawE.y, rawF.y);
+            let maxY = Math.max(rawA.y, rawB.y, rawC.y, rawD.y, rawE.y, rawF.y);
+
+            let curW = Math.max(maxX - minX, 550); 
+            let curH = Math.max(maxY - minY, 240);
+
+            const padTop = 130; 
+            const padBottom = 80; 
+            const padSide = 120; 
+
+            let targetScale = Math.min((canvas.width - 2 * padSide) / curW, (canvas.height - padTop - padBottom) / curH);
+            targetScale = Math.min(1.2, Math.max(0.1, targetScale)); 
+
+            let targetCamX = (minX + maxX) / 2;
+            let targetCamY = (minY + maxY) / 2;
+
+            camX += (targetCamX - camX) * 0.1;
+            camY += (targetCamY - camY) * 0.1;
+            camScale += (targetScale - camScale) * 0.1;
+
+            let displayCx = canvas.width / 2;
+            let displayCy = padTop + (canvas.height - padTop - padBottom) / 2;
+
+            function transform(pt) {
+                return {
+                    x: displayCx + (pt.x - camX) * camScale,
+                    y: displayCy + (pt.y - camY) * camScale
+                };
+            }
+
+            const A = transform(rawA); 
+            const B = transform(rawB); 
+            const C = transform(rawC); 
+            const D = transform(rawD); 
+            const E = transform(rawE); 
+            const F = transform(rawF); 
+
+            ctx.strokeStyle = '#bdc3c7';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); 
+            ctx.moveTo(0, A.y + 25); 
+            ctx.lineTo(canvas.width, B.y + 25); 
+            ctx.stroke();
+
+            let visualThickness = 12;
+            if (currentLevel <= 4) {
+                visualThickness = sectionVal === 0 ? 2 : 6 + (sectionVal / 500) * 8; 
+            }
+
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            function renderCurvedBeam(p1, pMid, p2) {
+                const cpX = 2 * pMid.x - 0.5 * p1.x - 0.5 * p2.x;
+                const cpY = 2 * pMid.y - 0.5 * p1.y - 0.5 * p2.y;
+
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.quadraticCurveTo(cpX, cpY, p2.x, p2.y);
+                
+                ctx.lineWidth = visualThickness;
+                ctx.strokeStyle = getStressGradient(p1.x, p1.y, p2.x, p2.y, currentStressRate, isBroken);
+                if (isBroken) ctx.setLineDash([15, 10]);
+                else ctx.setLineDash([]);
+                ctx.stroke();
+                
+                if (sectionVal > 0) {
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.setLineDash([]);
+                    ctx.stroke();
+                }
+            }
+
+            function renderBeam(p1, p2) {
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.lineWidth = visualThickness;
+                ctx.strokeStyle = getStressGradient(p1.x, p1.y, p2.x, p2.y, currentStressRate, isBroken);
+                if (isBroken) ctx.setLineDash([15, 10]);
+                else ctx.setLineDash([]);
+                ctx.stroke();
+                
+                if (sectionVal > 0) {
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.setLineDash([]);
+                    ctx.stroke();
+                }
+            }
+
+            renderCurvedBeam(A, E, C); 
+            renderCurvedBeam(B, F, C); 
+            renderCurvedBeam(A, D, B); 
+
+            if (hasPoincon) renderBeam(C, D); 
+            if (hasContreficheG) renderBeam(D, E); 
+            if (hasContreficheD) renderBeam(D, F); 
+
+            ctx.fillStyle = '#f1c40f';
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2;
+            
+            let activeNodes = [A, B, C];
+            if (hasPoincon || hasContreficheG || hasContreficheD || fD > 0) activeNodes.push(D);
+            if (hasContreficheG || fE > 0) activeNodes.push(E);
+            if (hasContreficheD || fF > 0) activeNodes.push(F);
+
+            activeNodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, visualThickness/2 + 2, 0, Math.PI * 2);
+                ctx.fill(); ctx.stroke();
+            });
+
+            if (isBroken && forceTotale > 0) {
+                if (fC > 0) drawFracture(C.x, C.y + 15);
+                if (fE > 0) drawFracture(E.x, E.y);
+                if (fF > 0) drawFracture(F.x, F.y);
+                if (fD > 0) drawFracture(D.x, D.y);
+                if (fAB > 0) {
+                    drawFracture((A.x + D.x) / 2, (A.y + D.y) / 2);
+                    drawFracture((B.x + D.x) / 2, (B.y + D.y) / 2);
+                }
+                
+                if (fC === 0 && fE === 0 && fF === 0 && fD === 0 && fAB === 0) {
+                    drawFracture(D.x, D.y);
+                }
+            }
+
+            if (sectionVal > 0) {
+                drawLabel("Entrait", D.x, D.y + 25, "center");
+                drawLabel("Arba.", E.x - 15, E.y - 15, "right");
+                drawLabel("Arba.", F.x + 15, F.y - 15, "left");
+                
+                if (hasPoincon) drawLabel("Poinçon", (C.x + D.x)/2 + 15, (C.y + D.y)/2, "left");
+                if (hasContreficheG) drawLabel("Contre. G", (D.x + E.x)/2, (D.y + E.y)/2 + 20, "center");
+                if (hasContreficheD) drawLabel("Contre. D", (D.x + F.x)/2, (D.y + F.y)/2 + 20, "center");
+            }
+
+            if (fAB > 0) {
+                drawSupport(A.x, A.y, 'mobile'); 
+            } else {
+                drawSupport(A.x, A.y, 'fixe'); 
+            }
+            drawSupport(B.x, B.y, 'mobile'); 
+
+            ctx.fillStyle = "#e84118";
+            ctx.strokeStyle = "#c23616";
+            ctx.lineWidth = 3;
+
+            function drawBoldArrow(x, y, angle, label, forceValue) {
+                if (forceValue === 0) return;
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+                
+                const minLength = 15;
+                const maxLength = 100;
+                const ratio = Math.min(forceValue / forceMaxRef, 1);
+                const bodyLength = minLength + (ratio * (maxLength - minLength));
+                
+                ctx.fillRect(0, -6, -bodyLength, 12);
+                ctx.strokeRect(0, -6, -bodyLength, 12);
+                
+                ctx.beginPath();
+                ctx.moveTo(0, -12);
+                ctx.lineTo(15, 0);
+                ctx.lineTo(0, 12);
+                ctx.closePath();
+                ctx.fill(); ctx.stroke();
+
+                if (label && currentLevel === 3) {
+                    ctx.rotate(-angle); 
+                    ctx.fillStyle = "#2c3e50";
+                    ctx.font = "bold 13px Arial";
+                    ctx.fillText(label, 15, -20);
+                }
+                ctx.restore();
+            }
+
+            if (fC > 0) drawBoldArrow(C.x, C.y - visualThickness - 10, Math.PI/2, fC + " N", fC);
+            if (fE > 0) drawBoldArrow(E.x, E.y - visualThickness - 10, Math.PI/2, fE + " N", fE);
+            if (fF > 0) drawBoldArrow(F.x, F.y - visualThickness - 10, Math.PI/2, fF + " N", fF);
+            if (fD > 0) drawBoldArrow(D.x, D.y - visualThickness - 10, Math.PI/2, fD + " N", fD);
+            if (fAB > 0) {
+                drawBoldArrow(A.x - visualThickness - 10, A.y, Math.PI, fAB + " N", fAB);
+                drawBoldArrow(B.x + visualThickness + 10, B.y, 0, "", fAB);
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
