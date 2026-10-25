@@ -39,6 +39,17 @@
             object-fit: contain;
         }
         h1 { color: var(--primary); margin: 0; }
+        /* Bouton « Accueil » du lanceur des editeurs (blockly_ts_lanceur) : affiche seulement si la page a ete ouverte depuis sa page d'accueil. */
+        .header-accueil {
+            position: absolute; top: 20px; left: 20px;
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 16px; border-radius: 20px;
+            background: var(--primary); color: #fff;
+            font-weight: bold; font-size: 0.9rem; text-decoration: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.3s;
+        }
+        .header-accueil:hover, .header-accueil:focus-visible { background: var(--accent); outline: none; }
+        @media (max-width: 900px) { .header-accueil { position: static; align-self: flex-start; margin-bottom: 10px; } }
         .container {
             display: flex;
             gap: 20px;
@@ -1202,6 +1213,43 @@
         }
 
         window.onload = init;
+    </script>
+    <script>
+    // ---------- Bouton « Accueil » : retour a la page d'accueil du lanceur (blockly_ts_lanceur) ----------
+    // La page ouverte depuis la page d'accueil recoit l'adresse de retour :
+    //  - ?lanceur=<port>  lanceur local : retour vers http://localhost:<port>/ ;
+    //  - ?accueil=<url>   version en ligne : retour vers cette adresse, acceptee seulement sur jreynaud42000.github.io
+    //                     (ou localhost) pour qu'un lien exterieur ne puisse pas detourner le bouton.
+    // L'adresse est gardee pour l'onglet (sessionStorage). Ouverte autrement, pas de bouton.
+    (function () {
+        function adresseAccueil() {
+            const parametres = new URLSearchParams(location.search);
+            const port = parametres.get('lanceur');
+            if (/^\d{2,5}$/.test(port || '')) return 'http://localhost:' + port + '/';
+            try {
+                const url = new URL(parametres.get('accueil') || '');
+                const local = url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
+                if (local || (url.protocol === 'https:' && url.hostname === 'jreynaud42000.github.io')) return url.href;
+            } catch (e) { /* parametre absent ou adresse invalide */ }
+            return null;
+        }
+        let adresse = adresseAccueil();
+        try {
+            if (adresse) sessionStorage.setItem('accueilLanceur', adresse);
+            else adresse = sessionStorage.getItem('accueilLanceur');
+        } catch (e) { /* stockage refuse : bouton seulement si le parametre est la */ }
+        const entete = document.querySelector('header');
+        if (!adresse || !entete || document.getElementById('header-accueil')) return;
+        const lien = document.createElement('a');
+        lien.id = 'header-accueil';
+        lien.className = 'header-accueil';
+        lien.href = adresse;
+        lien.title = "Revenir à l'accueil : choix de l'application";
+        lien.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+            'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>' +
+            '<span>Accueil</span>';
+        entete.parentNode.insertBefore(lien, entete);
+    })();
     </script>
 </body>
 </html>
